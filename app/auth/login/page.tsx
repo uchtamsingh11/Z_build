@@ -8,7 +8,7 @@ import BackButton from '@/components/back-button'
 
 function LoginContent() {
   const searchParams = useSearchParams()
-  const signupSuccess = searchParams.get('signup') === 'success'
+  const signupSuccess = searchParams?.get('signup') === 'success'
   const { showNotification } = useNotification()
   
   useEffect(() => {

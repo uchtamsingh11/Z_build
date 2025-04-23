@@ -7,7 +7,7 @@ import { useNotification } from '@/lib/notification'
 
 function ErrorContent() {
   const searchParams = useSearchParams()
-  const error = searchParams.get('error')
+  const error = searchParams?.get('error')
   const { showNotification } = useNotification()
 
   useEffect(() => {

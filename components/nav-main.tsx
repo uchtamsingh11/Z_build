@@ -55,7 +55,7 @@ export function NavMain({
   const isContainedInPath = (url: string) => {
     if (url === "#") return false;
     if (url === "/dashboard") return pathname === "/dashboard";
-    return pathname.startsWith(url) && pathname !== url;
+    return pathname?.startsWith(url) && pathname !== url;
   };
 
   // Add divider after Dashboard, My Developer and Referral items
