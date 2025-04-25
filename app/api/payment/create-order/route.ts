@@ -36,11 +36,13 @@ export async function POST(request: Request) {
       order_currency: currency,
       customer_details: {
         customer_id: user.id,
-        customer_email: user.email,
-        customer_phone: '9999999999' // Default phone number as required by Cashfree
+        customer_email: user.email || 'customer@example.com',
+        customer_phone: '9999999999', // Default phone number as required by Cashfree
+        customer_name: user.user_metadata?.full_name || 'Customer' // Add customer name
       },
       order_meta: {
-        return_url: `${process.env.NEXT_PUBLIC_APP_URL}/payment/status?orderId={order_id}`,
+        return_url: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/payment/status?orderId=${orderId}`,
+        notify_url: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/payment/webhook`
       }
     };
     

@@ -17,6 +17,7 @@ export default function BuyCoins() {
       setProcessingPaymentFor(coins);
       
       // Call our API to create an order
+      console.log('Creating payment order:', { amount, coins });
       const response = await fetch('/api/payment/create-order', {
         method: 'POST',
         headers: {
@@ -30,15 +31,23 @@ export default function BuyCoins() {
       
       const data = await response.json();
       
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to create order');
-      }
-      
       // Redirect to the payment page
       console.log('Payment data received:', data);
       
-      if (!data.payment_link) {
-        throw new Error('No payment link received from server');
+      if (!response.ok) {
+        console.error('Payment API error:', data);
+        throw new Error(data.error || 'Failed to create order');
+      }
+      
+      if (!data.payment_link && !data.payment_session_id) {
+        console.error('No payment link or session ID received:', data);
+        throw new Error('Payment gateway error: No payment link received');
+      }
+      
+      // Use session ID if we don't have a direct payment link
+      if (!data.payment_link && data.payment_session_id) {
+        data.payment_link = `https://payments.cashfree.com/order/#${data.payment_session_id}`;
+        console.log('Constructed payment link:', data.payment_link);
       }
       
       // Redirect to the payment page
