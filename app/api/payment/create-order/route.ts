@@ -4,7 +4,7 @@ import { randomUUID } from 'crypto';
 
 // Cashfree API constants
 const CASHFREE_API_VERSION = '2023-08-01';
-// Force production URL since we're using production credentials
+// Force production URL
 const CASHFREE_BASE_URL = 'https://api.cashfree.com/pg';
 
 export async function POST(request: Request) {
@@ -29,7 +29,11 @@ export async function POST(request: Request) {
     // Create a unique order ID
     const orderId = `order_${randomUUID()}`;
     
-    // Create order in Cashfree
+    // The absolute URL for return
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+    const returnUrl = `${appUrl}/payment/status?orderId=${orderId}`;
+    
+    // Create order in Cashfree - follow exact API structure
     const orderPayload = {
       order_id: orderId,
       order_amount: amount,
@@ -37,14 +41,17 @@ export async function POST(request: Request) {
       customer_details: {
         customer_id: user.id,
         customer_email: user.email || 'customer@example.com',
-        customer_phone: '9999999999', // Default phone number as required by Cashfree
-        customer_name: user.user_metadata?.full_name || 'Customer' // Add customer name
+        customer_phone: '9999999999',
+        customer_name: user.user_metadata?.full_name || 'Customer'
       },
       order_meta: {
-        return_url: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/payment/status?orderId=${orderId}`,
-        notify_url: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/payment/webhook`
-      }
+        return_url: returnUrl,
+        notify_url: `${appUrl}/api/payment/webhook`
+      },
+      order_note: `Purchase of ${coins} coins`
     };
+    
+    console.log('Sending order payload to Cashfree:', JSON.stringify(orderPayload, null, 2));
     
     const cashfreeResponse = await fetch(`${CASHFREE_BASE_URL}/orders`, {
       method: 'POST',
@@ -65,17 +72,10 @@ export async function POST(request: Request) {
     
     if (!cashfreeResponse.ok) {
       console.error('Cashfree API error:', cashfreeData);
-      return NextResponse.json({ error: 'Failed to create payment order' }, { status: 500 });
-    }
-    
-    // Ensure the payment_link exists, or construct a web checkout URL
-    if (!cashfreeData.payment_link) {
-      console.warn('Payment link not found in Cashfree response, constructing fallback URL');
-      if (cashfreeData.payment_session_id) {
-        cashfreeData.payment_link = `https://payments.cashfree.com/order/#${cashfreeData.payment_session_id}`;
-      } else {
-        return NextResponse.json({ error: 'Invalid payment response from gateway' }, { status: 500 });
-      }
+      return NextResponse.json({ 
+        error: cashfreeData.message || 'Failed to create payment order',
+        details: cashfreeData
+      }, { status: 500 });
     }
     
     // Store the order in our database
@@ -94,11 +94,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Failed to create order record' }, { status: 500 });
     }
     
-    // Return the payment link
+    // Return the exact response format expected by the client
     return NextResponse.json({
       order_id: orderId,
-      payment_link: cashfreeData.payment_link,
-      payment_sessions: cashfreeData.payment_sessions
+      payment_session_id: cashfreeData.payment_session_id,
+      payment_link: cashfreeData.payment_link || `https://payments.cashfree.com/order/#${cashfreeData.payment_session_id}`
     });
     
   } catch (error) {

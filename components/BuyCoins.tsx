@@ -31,7 +31,7 @@ export default function BuyCoins() {
       
       const data = await response.json();
       
-      // Redirect to the payment page
+      // Log the response
       console.log('Payment data received:', data);
       
       if (!response.ok) {
@@ -39,23 +39,23 @@ export default function BuyCoins() {
         throw new Error(data.error || 'Failed to create order');
       }
       
-      if (!data.payment_link && !data.payment_session_id) {
-        console.error('No payment link or session ID received:', data);
-        throw new Error('Payment gateway error: No payment link received');
-      }
-      
-      // Use session ID if we don't have a direct payment link
-      if (!data.payment_link && data.payment_session_id) {
-        data.payment_link = `https://payments.cashfree.com/order/#${data.payment_session_id}`;
-        console.log('Constructed payment link:', data.payment_link);
+      // Check if we have the required data to proceed
+      if (!data.payment_session_id && !data.payment_link) {
+        console.error('Missing payment data:', data);
+        throw new Error('Payment gateway error: Required payment data missing');
       }
       
       // Redirect to the payment page
-      window.location.href = data.payment_link;
+      if (data.payment_link) {
+        window.location.href = data.payment_link;
+      } else {
+        // Fallback to session ID directly
+        window.location.href = `https://payments.cashfree.com/order/#${data.payment_session_id}`;
+      }
       
     } catch (error) {
       console.error('Payment error:', error);
-      alert('Failed to initiate payment. Please try again.');
+      alert('Payment initialization failed. Please try again later.');
     } finally {
       setIsLoading(false);
       setProcessingPaymentFor(null);
