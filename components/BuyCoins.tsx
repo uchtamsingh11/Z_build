@@ -10,11 +10,13 @@ import { Card, CardDescription, CardFooter, CardHeader, CardTitle } from '@/comp
 export default function BuyCoins() {
   const [isLoading, setIsLoading] = useState(false);
   const [processingPaymentFor, setProcessingPaymentFor] = useState<number | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const handlePurchase = async (amount: number, coins: number) => {
     try {
       setIsLoading(true);
       setProcessingPaymentFor(coins);
+      setError(null);
       
       // Call our API to create an order
       console.log('Creating payment order:', { amount, coins });
@@ -36,26 +38,39 @@ export default function BuyCoins() {
       
       if (!response.ok) {
         console.error('Payment API error:', data);
-        throw new Error(data.error || 'Failed to create order');
+        setError(data.error || 'Failed to create order');
+        return;
       }
       
       // Check if we have the required data to proceed
       if (!data.payment_session_id && !data.payment_link) {
         console.error('Missing payment data:', data);
-        throw new Error('Payment gateway error: Required payment data missing');
+        setError('Payment gateway error: Required payment data missing');
+        return;
       }
       
-      // Redirect to the payment page
+      // Redirect to the payment page - handle different Cashfree environments
       if (data.payment_link) {
+        console.log('Redirecting to payment link:', data.payment_link);
         window.location.href = data.payment_link;
+      } else if (data.payment_session_id) {
+        // Dynamically construct the URL based on environment
+        const isSandbox = window.location.hostname === 'localhost' || 
+                        window.location.hostname.includes('vercel.app');
+        const paymentBaseUrl = isSandbox 
+          ? 'https://sandbox.cashfree.com/pg'
+          : 'https://payments.cashfree.com/order';
+          
+        const paymentUrl = `${paymentBaseUrl}/#${data.payment_session_id}`;
+        console.log('Redirecting to payment session:', paymentUrl);
+        window.location.href = paymentUrl;
       } else {
-        // Fallback to session ID directly
-        window.location.href = `https://payments.cashfree.com/order/#${data.payment_session_id}`;
+        setError('No payment redirect information available');
       }
       
     } catch (error) {
       console.error('Payment error:', error);
-      alert('Payment initialization failed. Please try again later.');
+      setError('Payment initialization failed. Please try again later.');
     } finally {
       setIsLoading(false);
       setProcessingPaymentFor(null);
@@ -65,6 +80,12 @@ export default function BuyCoins() {
   return (
     <div id="buy-section" className="mt-12">
       <h2 className="text-xl font-semibold mb-6">Buy Coins</h2>
+      
+      {error && (
+        <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
+          {error}
+        </div>
+      )}
       
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {/* Basic Plan */}
