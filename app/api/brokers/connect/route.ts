@@ -29,7 +29,7 @@ export async function POST(request: Request) {
       user_id: user.id,
       broker_name,
       credentials,
-      is_active: true,
+      is_active: false
     }).select().single();
     
     if (error) {

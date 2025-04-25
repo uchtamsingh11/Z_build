@@ -85,6 +85,11 @@ const defaultData = {
       icon: Key,
     },
     {
+      title: "Assistant",
+      url: "/assistant",
+      icon: Bot,
+    },
+    {
       title: "TradingView",
       url: "#",
       icon: LineChart,

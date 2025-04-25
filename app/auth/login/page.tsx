@@ -22,11 +22,17 @@ function LoginContent() {
   }, [signupSuccess, showNotification])
 
   return (
-    <div className="flex min-h-svh w-full items-center justify-center p-6 md:p-10 relative">
-      <BackButton />
+    <div className="min-h-screen w-full flex flex-col items-center justify-center bg-black text-white font-mono relative">
       <div className="w-full max-w-sm">
-        <LoginForm />
+        <div className="mb-8 flex items-center justify-center gap-2">
+          <BackButton />
+          <span className="text-xs tracking-widest uppercase text-zinc-400 ml-2">System: Login</span>
+        </div>
+        <div className="bg-zinc-950 border border-zinc-900 rounded-xl shadow-md p-6">
+          <LoginForm />
+        </div>
       </div>
+      <div className="absolute inset-0 bg-[linear-gradient(to_right,#111_1px,transparent_1px),linear-gradient(to_bottom,#111_1px,transparent_1px)] bg-[size:32px_32px] opacity-20 pointer-events-none -z-10" />
     </div>
   )
 }

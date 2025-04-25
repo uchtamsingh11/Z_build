@@ -17,7 +17,8 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { CoinBalanceDisplay } from "@/components/coin-balance-display"
 import { Card, CardContent } from "@/components/ui/card"
-import { Tag, TerminalIcon } from "lucide-react"
+import { Tag, TerminalIcon, ImageIcon } from "lucide-react"
+import { ImageProcessor } from "@/components/image-processor"
 
 export default async function Page() {
   // Check if user is authenticated
@@ -89,6 +90,23 @@ export default async function Page() {
             <Card className="border-zinc-800 bg-zinc-900/50 shadow-md">
               <CardContent className="pt-6 space-y-6">
                 {/* Content for Symbol configuration page */}
+              </CardContent>
+            </Card>
+            
+            <div className="mt-8"></div>
+            
+            <Card className="border-zinc-800 bg-zinc-900/50 shadow-md mt-8">
+              <CardContent className="pt-6 space-y-6">
+                <div className="flex items-center mb-6">
+                  <div className="w-6 h-6 flex items-center justify-center bg-zinc-950 border border-zinc-900 mr-2">
+                    <ImageIcon className="w-3 h-3 text-white" />
+                  </div>
+                  <h2 className="text-sm font-mono uppercase tracking-wider text-white">CHART_IMAGE_PROCESSOR</h2>
+                </div>
+                
+                <div className="p-2">
+                  <ImageProcessor />
+                </div>
               </CardContent>
             </Card>
           </div>

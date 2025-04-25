@@ -49,7 +49,7 @@ const AVAILABLE_BROKERS: AvailableBrokerConfig[] = [
   { name: 'Kotak Neo', fields: ['Consumer Key', 'Secret Key', 'Access Token', 'Mobile No.', 'Password', 'MPIN'] },
   { name: 'MetaTrader 4', fields: ['User ID', 'Password', 'Host', 'Port'] },
   { name: 'MetaTrader 5', fields: ['User ID', 'Password', 'Host', 'Port'] },
-  { name: 'Upstox', fields: ['API Key', 'App Secret Key', 'Access Token'] },
+  { name: 'Upstox', fields: ['Access Token'] },
   { name: 'Zerodha', fields: ['API Key', 'Secret Key'] },
 ];
 
@@ -66,6 +66,7 @@ export default function BrokerAuthContent() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingBroker, setEditingBroker] = useState<BrokerCredential | null>(null);
   const [loading, setLoading] = useState(false);
+  const [loadingBrokers, setLoadingBrokers] = useState<string[]>([]);
   const { showNotification } = useNotification();
 
   // Fetch saved brokers on component mount
@@ -100,6 +101,143 @@ export default function BrokerAuthContent() {
     try {
       const newStatus = !broker.is_active;
       
+      // Start loading state for this specific broker
+      setLoadingBrokers(prev => [...prev, broker.id]);
+      
+      // For Dhan broker, use specialized authentication endpoints
+      if (broker.broker_name === 'Dhan') {
+        if (newStatus) {
+          // Attempting to activate Dhan broker - needs authentication
+          const response = await fetch('/api/brokers/dhan/authenticate', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ broker_id: broker.id }),
+          });
+          
+          if (!response.ok) {
+            const errorData = await response.json();
+            // Toggle automatically reverts to OFF on auth failure
+            setSavedBrokers(prev => prev.map(b => b.id === broker.id ? { ...b, is_active: false } : b));
+            
+            // Show error notification
+            showNotification({
+              title: 'Login denied by Dhan',
+              description: `${errorData.details?.message || errorData.details?.error || errorData.error || 'Authentication failed'} 
+              ${errorData.status ? `(Status: ${errorData.status} ${errorData.statusText})` : ''}
+              ${errorData.endpoint ? `Endpoint: ${errorData.endpoint}` : ''}`,
+              type: 'error',
+            });
+            
+            // Remove this broker from loading state
+            setLoadingBrokers(prev => prev.filter(id => id !== broker.id));
+            return;
+          }
+          
+          // Authentication successful
+          setSavedBrokers(prev => prev.map(b => b.id === broker.id ? { ...b, is_active: true } : b));
+          
+          showNotification({
+            title: 'Broker login authenticated successfully',
+            type: 'success',
+          });
+        } else {
+          // Deactivating Dhan broker
+          const response = await fetch('/api/brokers/dhan/deactivate', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ broker_id: broker.id }),
+          });
+          
+          if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Failed to deactivate broker');
+          }
+          
+          // Broker deactivated successfully
+          setSavedBrokers(prev => prev.map(b => b.id === broker.id ? { ...b, is_active: false } : b));
+          
+          showNotification({
+            title: 'Broker deactivated',
+            type: 'success',
+          });
+        }
+        
+        // Remove this broker from loading state
+        setLoadingBrokers(prev => prev.filter(id => id !== broker.id));
+        return;
+      }
+      
+      // For Upstox broker, use specialized authentication endpoints
+      if (broker.broker_name === 'Upstox') {
+        if (newStatus) {
+          // Attempting to activate Upstox broker - needs token verification
+          const response = await fetch('/api/brokers/upstox/verify', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ broker_id: broker.id }),
+          });
+          
+          const responseData = await response.json();
+          
+          if (!response.ok) {
+            // Toggle automatically reverts to OFF on verification failure
+            setSavedBrokers(prev => prev.map(b => b.id === broker.id ? { ...b, is_active: false } : b));
+            
+            // Show error notification
+            showNotification({
+              title: 'Upstox Verification Failed',
+              description: responseData.error || 'No profile found. Please check your token.',
+              type: 'error',
+            });
+            
+            // Remove this broker from loading state
+            setLoadingBrokers(prev => prev.filter(id => id !== broker.id));
+            return;
+          }
+          
+          // Authentication successful
+          setSavedBrokers(prev => prev.map(b => b.id === broker.id ? { ...b, is_active: true } : b));
+          
+          showNotification({
+            title: 'Upstox authentication success',
+            type: 'success',
+          });
+        } else {
+          // Deactivating Upstox broker
+          const response = await fetch('/api/brokers/upstox/deactivate', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ broker_id: broker.id }),
+          });
+          
+          if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Failed to deactivate broker');
+          }
+          
+          // Broker deactivated successfully
+          setSavedBrokers(prev => prev.map(b => b.id === broker.id ? { ...b, is_active: false } : b));
+          
+          showNotification({
+            title: 'Upstox deactivated',
+            type: 'success',
+          });
+        }
+        
+        // Remove this broker from loading state
+        setLoadingBrokers(prev => prev.filter(id => id !== broker.id));
+        return;
+      }
+      
+      // For other brokers, use the standard endpoint
       const response = await fetch(`/api/brokers/${broker.id}`, {
         method: 'PATCH',
         headers: {
@@ -122,7 +260,13 @@ export default function BrokerAuthContent() {
         title: newStatus ? 'Broker Activated' : 'Broker Deactivated',
         type: 'success',
       });
+      
+      // Remove this broker from loading state
+      setLoadingBrokers(prev => prev.filter(id => id !== broker.id));
     } catch (error: any) {
+      // Remove this broker from loading state on error
+      setLoadingBrokers(prev => prev.filter(id => id !== broker.id));
+      
       showNotification({
         title: 'Failed to update broker status',
         description: error.message,
@@ -208,7 +352,8 @@ export default function BrokerAuthContent() {
       fetchSavedBrokers();
       
       showNotification({
-        title: 'Broker Connected Successfully',
+        title: 'Broker Credentials Saved',
+        description: 'Toggle the broker ON from the Saved Brokers list to authenticate and activate.',
         type: 'success',
       });
     } catch (error: any) {
@@ -261,10 +406,19 @@ export default function BrokerAuthContent() {
       setIsEditModalOpen(false);
       fetchSavedBrokers();
       
-      showNotification({
-        title: 'Broker Updated Successfully',
-        type: 'success',
-      });
+      // If this is a Dhan broker and it's currently active, show a message about toggling
+      if (editingBroker.broker_name === 'Dhan' && editingBroker.is_active) {
+        showNotification({
+          title: 'Broker Updated Successfully',
+          description: 'You may need to toggle the broker OFF and ON again to re-authenticate with the new credentials.',
+          type: 'success',
+        });
+      } else {
+        showNotification({
+          title: 'Broker Updated Successfully',
+          type: 'success',
+        });
+      }
     } catch (error: any) {
       showNotification({
         title: 'Update Failed',
@@ -329,8 +483,12 @@ export default function BrokerAuthContent() {
                       <Switch 
                         checked={broker.is_active} 
                         onCheckedChange={() => handleToggleBroker(broker)}
-                        className="data-[state=checked]:bg-green-700 data-[state=unchecked]:bg-zinc-700"
+                        className={`data-[state=checked]:bg-green-700 data-[state=unchecked]:bg-zinc-700 ${loadingBrokers.includes(broker.id) ? 'opacity-50' : ''}`}
+                        disabled={loadingBrokers.includes(broker.id)}
                       />
+                      {loadingBrokers.includes(broker.id) && (
+                        <div className="w-4 h-4 border-2 border-t-transparent border-zinc-400 rounded-full animate-spin ml-1"></div>
+                      )}
                       <Button
                         variant="ghost"
                         size="icon"
@@ -356,7 +514,7 @@ export default function BrokerAuthContent() {
                     onClick={() => setIsConnectModalOpen(true)}
                     className="bg-zinc-900 hover:bg-zinc-800 border-zinc-800 text-white text-xs font-mono"
                   >
-                    <LinkIcon className="h-3.5 w-3.5 mr-1" /> CONNECT_NEW_BROKER
+                    <LinkIcon className="h-3.5 w-3.5 mr-1" /> SAVE_NEW_BROKER
                   </Button>
                 </div>
               </div>
@@ -394,7 +552,7 @@ export default function BrokerAuthContent() {
                       size="sm" 
                       className="w-full text-xs justify-center font-mono text-zinc-400 hover:text-white hover:bg-zinc-800"
                     >
-                      CONNECT
+                      SAVE
                     </Button>
                   </div>
                 </div>
@@ -412,8 +570,18 @@ export default function BrokerAuthContent() {
         <DialogContent className="bg-black border border-zinc-900 text-white max-w-md">
           <DialogHeader>
             <DialogTitle className="text-white font-mono">
-              CONNECT {selectedBroker?.name.toUpperCase() || ''}
+              SAVE {selectedBroker?.name.toUpperCase() || ''}
             </DialogTitle>
+            {selectedBroker?.name === 'Dhan' && (
+              <DialogDescription className="text-zinc-500 font-mono text-xs mt-2">
+                STEP 1: SAVE CREDENTIALS | STEP 2: TOGGLE TO AUTHENTICATE
+              </DialogDescription>
+            )}
+            {selectedBroker?.name === 'Upstox' && (
+              <DialogDescription className="text-zinc-500 font-mono text-xs mt-2">
+                STEP 1: SAVE ACCESS TOKEN | STEP 2: TOGGLE TO VERIFY
+              </DialogDescription>
+            )}
           </DialogHeader>
           <div className="space-y-5 py-6">
             {selectedBroker?.fields.map((field) => (
@@ -428,6 +596,22 @@ export default function BrokerAuthContent() {
                 />
               </div>
             ))}
+            
+            {selectedBroker?.name === 'Dhan' && (
+              <div className="p-3 border border-zinc-800 rounded bg-zinc-900/30 text-xs text-zinc-400 mt-4">
+                <p>Step 1: Save your Dhan credentials</p>
+                <p>Step 2: Toggle ON the broker from Saved Brokers to authenticate</p>
+                <p className="text-zinc-500 mt-2">You can get your credentials from web.dhan.co → My Profile → DhanHQ Trading APIs and Access</p>
+              </div>
+            )}
+            
+            {selectedBroker?.name === 'Upstox' && (
+              <div className="p-3 border border-zinc-800 rounded bg-zinc-900/30 text-xs text-zinc-400 mt-4">
+                <p>Step 1: Paste your Upstox access token</p>
+                <p>Step 2: Toggle ON the broker from Saved Brokers to verify the token</p>
+                <p className="text-zinc-500 mt-2">Note: We don't use OAuth for this integration. You need to manually enter your access token.</p>
+              </div>
+            )}
           </div>
           <DialogFooter className="pt-4 border-t border-zinc-900">
             <Button 
@@ -442,7 +626,7 @@ export default function BrokerAuthContent() {
               disabled={loading}
               className="bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-white font-mono text-xs"
             >
-              {loading ? 'CONNECTING...' : 'CONNECT'}
+              {loading ? 'SAVING...' : selectedBroker?.name === 'Dhan' ? 'SAVE_CREDENTIALS' : 'SAVE'}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -454,7 +638,11 @@ export default function BrokerAuthContent() {
           <DialogHeader>
             <DialogTitle className="text-white font-mono">EDIT {editingBroker?.broker_name.toUpperCase() || ''}</DialogTitle>
             <DialogDescription className="text-zinc-500 font-mono text-xs">
-              UPDATE_BROKER_CREDENTIALS
+              {editingBroker?.broker_name === 'Dhan' 
+                ? 'UPDATE_BROKER_CREDENTIALS | TOGGLE TO RE-AUTHENTICATE' 
+                : editingBroker?.broker_name === 'Upstox'
+                ? 'UPDATE_ACCESS_TOKEN | TOGGLE TO VERIFY'
+                : 'UPDATE_BROKER_CREDENTIALS'}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
@@ -470,6 +658,18 @@ export default function BrokerAuthContent() {
                 />
               </div>
             ))}
+            
+            {editingBroker?.broker_name === 'Dhan' && (
+              <div className="p-3 border border-zinc-800 rounded bg-zinc-900/30 text-xs text-zinc-400 mt-4">
+                <p>After updating your credentials, you may need to toggle the broker OFF and then ON again to re-authenticate with Dhan.</p>
+              </div>
+            )}
+
+            {editingBroker?.broker_name === 'Upstox' && (
+              <div className="p-3 border border-zinc-800 rounded bg-zinc-900/30 text-xs text-zinc-400 mt-4">
+                <p>After updating your access token, you will need to toggle the broker OFF and then ON again to verify the new token with Upstox.</p>
+              </div>
+            )}
           </div>
           <DialogFooter className="border-t border-zinc-900 pt-4">
             <Button 
