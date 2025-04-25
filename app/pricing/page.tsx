@@ -28,21 +28,21 @@ import {
   Clock,
   Coins, 
   CreditCard, 
-  TerminalIcon 
+  TerminalIcon,
+  Info,
+  Loader2
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import DashboardPricing from "@/components/dashboard-pricing"
 
 export default function Page() {
   const [user, setUser] = useState<User | null>(null)
   const [sessionId, setSessionId] = useState("")
   const [showHistory, setShowHistory] = useState(false)
-  const [customAmount, setCustomAmount] = useState(500)
-  const [customCoins, setCustomCoins] = useState(500)
-  const [isLoading, setIsLoading] = useState<number | null>(null)
-  const [email, setEmail] = useState<string | null>(null)
-  const [phone, setPhone] = useState<string>('')
+  const [isLoading, setIsLoading] = useState(false)
+  const [processingPaymentFor, setProcessingPaymentFor] = useState<number | null>(null)
   
   useEffect(() => {
     async function checkAuth() {
@@ -59,32 +59,11 @@ export default function Page() {
       }
       
       setUser(data.user)
-      setEmail(data.user?.email || null)
       setSessionId(Math.random().toString(36).substring(2, 10).toUpperCase())
-      
-      // Skip profile retrieval to avoid errors with missing table
-      // We'll just use email from the user object
-      /*
-      // Fetch user profile for phone number if available
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('phone')
-        .eq('id', data.user.id)
-        .single();
-        
-      if (profile?.phone) {
-        setPhone(profile.phone);
-      }
-      */
     }
     
     checkAuth()
   }, [])
-
-  // Update coins when amount changes (1:1 ratio)
-  useEffect(() => {
-    setCustomCoins(customAmount)
-  }, [customAmount])
 
   const handleHistoryClick = () => {
     setShowHistory(true)
@@ -93,133 +72,41 @@ export default function Page() {
   const handleCloseHistory = () => {
     setShowHistory(false)
   }
-
-  const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = parseInt(e.target.value) || 0
-    setCustomAmount(value)
-  }
-
-  // Function to load Cashfree SDK
-  const loadCashfreeSDK = async () => {
-    return new Promise<any>((resolve, reject) => {
-      // Check if already loaded
-      if ((window as any).Cashfree) {
-        resolve((window as any).Cashfree);
-        return;
-      }
-      
-      // Use production SDK URL 
-      const script = document.createElement('script');
-      script.src = 'https://sdk.cashfree.com/js/ui/2.0.0/cashfree.prod.js';
-      script.async = true;
-      
-      script.onload = () => {
-        // Initialize Cashfree
-        const cashfree = new (window as any).Cashfree();
-        resolve(cashfree);
-      };
-      
-      script.onerror = () => {
-        reject(new Error('Failed to load Cashfree SDK'));
-      };
-      
-      document.body.appendChild(script);
-    });
-  };
-
-  // New payment handler with Cashfree integration
-  const handlePurchase = async (planId: number, coins: number, price: number) => {
+  
+  const handlePurchase = async (amount: number, coins: number) => {
     try {
-      if (!user) {
-        alert('Please log in to purchase coins');
-        return;
-      }
+      setIsLoading(true)
+      setProcessingPaymentFor(coins)
       
-      setIsLoading(planId);
-      
-      console.log("Starting purchase process...");
-      // Call our API to create a payment order
-      const response = await fetch('/api/create-order', {
+      // Call our API to create an order
+      const response = await fetch('/api/payment/create-order', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          userId: user.id,
-          coinAmount: coins,
-          price: price,
-          customerEmail: email,
-          customerPhone: phone
+          amount: amount,
+          coins: coins
         }),
-      });
+      })
       
-      const data = await response.json();
-      console.log("Create order response:", data);
+      const data = await response.json()
       
-      if (!data.success) {
-        console.error('Failed to create payment order:', data.message);
-        alert('Failed to initiate payment. Please try again.');
-        setIsLoading(null);
-        return;
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to create order')
       }
       
-      // Load Cashfree SDK
-      const cashfree = await loadCashfreeSDK();
-      console.log("Loaded Cashfree SDK");
-      
-      // Initiate payment
-      // Updated to use the new API response format
-      let sessionId = '';
-      if (data.data && data.data.cf_order_id) {
-        sessionId = data.data.cf_order_id;
-      } else if (data.data && data.data.payment_session_id) {
-        sessionId = data.data.payment_session_id;
-      } else {
-        console.error('Missing session ID in response:', data);
-        alert('Payment initialization error. Please try again.');
-        setIsLoading(null);
-        return;
-      }
-      
-      console.log("Initiating checkout with session ID:", sessionId);
-      cashfree.checkout({
-        paymentSessionId: sessionId,
-        redirectTarget: '_self'
-      });
+      // Redirect to the payment page
+      window.location.href = data.payment_link
       
     } catch (error) {
-      console.error('Error initiating payment:', error);
-      alert('An error occurred while initiating payment. Please try again.');
-      setIsLoading(null);
+      console.error('Payment error:', error)
+      alert('Failed to initiate payment. Please try again.')
+    } finally {
+      setIsLoading(false)
+      setProcessingPaymentFor(null)
     }
-  };
-
-  // Define our pricing plans
-  const pricingPlans = [
-    {
-      id: 1,
-      name: "BASIC_PLAN",
-      price: 999,
-      coins: 1000,
-      recommended: false,
-      cta: "BUY_NOW"
-    },
-    {
-      id: 2,
-      name: "PRO_PLAN",
-      price: 2249,
-      coins: 2500,
-      recommended: true,
-      cta: "BUY_NOW"
-    },
-    {
-      id: 3,
-      name: "CUSTOM_PLAN",
-      custom: true,
-      recommended: false,
-      cta: "BUY_NOW"
-    }
-  ]
+  }
 
   if (!user) {
     return <div className="min-h-screen flex items-center justify-center text-white">Loading...</div>
@@ -291,9 +178,9 @@ export default function Page() {
                 </div>
               </div>
               
-              {/* Pricing Plans */}
+              {/* Pricing Cards */}
               <div className="max-w-6xl mx-auto">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-4">
                   {/* Basic Plan */}
                   <Card className="border-zinc-800 bg-zinc-900/50 shadow-xl hover:shadow-2xl transition-all duration-300 relative overflow-hidden">
                     <CardHeader className="pt-8 px-6">
@@ -320,17 +207,11 @@ export default function Page() {
                     <CardFooter className="px-6 pb-8">
                       <Button 
                         className="w-full h-12 bg-zinc-800 hover:bg-zinc-700 text-white border-zinc-700 mt-4"
-                        onClick={() => handlePurchase(1, 1000, 999)}
-                        disabled={isLoading === 1}
+                        onClick={() => handlePurchase(999, 1000)}
+                        disabled={isLoading}
                       >
-                        {isLoading === 1 ? (
-                          <span className="flex items-center justify-center">
-                            <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                            </svg>
-                            PROCESSING
-                          </span>
+                        {isLoading && processingPaymentFor === 1000 ? (
+                          <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> PROCESSING</>
                         ) : (
                           'BUY_NOW'
                         )}
@@ -349,7 +230,10 @@ export default function Page() {
                         </div>
                         <div>
                           <CardTitle className="text-lg text-white font-mono">PRO_PLAN</CardTitle>
-                          <span className="inline-block px-2 py-0.5 bg-white text-black text-xs font-semibold rounded mt-1">RECOMMENDED</span>
+                          <div className="flex items-center mt-1">
+                            <BadgeCheck className="w-3 h-3 text-white mr-1" />
+                            <CardDescription className="text-xs text-zinc-400">RECOMMENDED_CONFIG</CardDescription>
+                          </div>
                         </div>
                       </div>
                       
@@ -366,18 +250,12 @@ export default function Page() {
                     
                     <CardFooter className="px-6 pb-8">
                       <Button 
-                        className="w-full h-12 bg-white hover:bg-zinc-200 text-black border-zinc-200 mt-4 font-semibold"
-                        onClick={() => handlePurchase(2, 2500, 2249)}
-                        disabled={isLoading === 2}
+                        className="w-full h-12 bg-zinc-800 hover:bg-zinc-700 text-white border-zinc-700 mt-4"
+                        onClick={() => handlePurchase(2249, 2500)}
+                        disabled={isLoading}
                       >
-                        {isLoading === 2 ? (
-                          <span className="flex items-center justify-center">
-                            <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-black" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                            </svg>
-                            PROCESSING
-                          </span>
+                        {isLoading && processingPaymentFor === 2500 ? (
+                          <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> PROCESSING</>
                         ) : (
                           'BUY_NOW'
                         )}
@@ -397,42 +275,29 @@ export default function Page() {
                         </div>
                       </div>
                       
-                      <div className="flex items-center mb-4">
-                        <div className="basis-1/2">
-                          <Input
-                            type="number"
-                            min="100"
-                            value={customAmount}
-                            onChange={handleAmountChange}
-                            placeholder="Enter amount"
-                            className="bg-zinc-950 border-zinc-800 text-white placeholder:text-zinc-600"
-                          />
+                      <div className="flex flex-col items-center">
+                        <div className="flex items-center text-center mb-4">
+                          <span className="text-4xl font-bold text-white">500</span>
+                          <Coins className="h-7 w-7 ml-2 text-amber-500" />
                         </div>
-                        <div className="basis-1/2 pl-3">
-                          <span className="text-xl font-bold text-white">₹{customAmount}</span>
+                        
+                        <div className="flex items-center mb-4">
+                          <span className="text-2xl font-semibold text-white">₹</span>
+                          <span className="text-2xl font-semibold text-white ml-1">500</span>
                         </div>
-                      </div>
-                      
-                      <div className="flex items-center py-2 px-3 bg-zinc-950 rounded-md border border-zinc-800 mb-4">
-                        <Coins className="h-4 w-4 text-white mr-2" />
-                        <span className="text-lg font-mono">{customCoins} COINS</span>
+                        
+                        <p className="text-xs text-zinc-400 mt-1 mb-4">₹1 = 1 Coin</p>
                       </div>
                     </CardHeader>
                     
                     <CardFooter className="px-6 pb-8">
                       <Button 
                         className="w-full h-12 bg-zinc-800 hover:bg-zinc-700 text-white border-zinc-700 mt-4"
-                        onClick={() => handlePurchase(3, customCoins, customAmount)}
-                        disabled={isLoading === 3 || customAmount < 100}
+                        onClick={() => handlePurchase(500, 500)}
+                        disabled={isLoading}
                       >
-                        {isLoading === 3 ? (
-                          <span className="flex items-center justify-center">
-                            <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                            </svg>
-                            PROCESSING
-                          </span>
+                        {isLoading && processingPaymentFor === 500 ? (
+                          <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> PROCESSING</>
                         ) : (
                           'BUY_NOW'
                         )}
@@ -442,19 +307,19 @@ export default function Page() {
                 </div>
               </div>
               
-              {/* Payment Info Section */}
-              <div className="max-w-3xl mx-auto mt-16">
-                <div className="bg-zinc-900/50 border border-zinc-800 rounded-lg p-6">
-                  <h3 className="text-lg font-mono mb-4 flex items-center">
-                    <AlertCircle className="h-4 w-4 mr-2" />
-                    PAYMENT_INFORMATION
-                  </h3>
-                  
-                  <div className="text-sm text-zinc-400 space-y-2">
-                    <p>• All payments are processed securely through Cashfree Payment Gateway.</p>
-                    <p>• Coins will be instantly credited to your account after successful payment.</p>
-                    <p>• For any payment-related issues, please contact our support team.</p>
-                    <p>• Coins are non-refundable but do not expire.</p>
+              <div className="mx-auto max-w-6xl px-6 py-4 text-center">
+                <p className="text-sm text-zinc-400 font-mono">YOU_CAN_USE_THIS_COIN_ACROSS_25_PLUS_PRODUCTS_AND_SERVICES</p>
+              </div>
+              
+              {/* Refund Policy Section */}
+              <div className="max-w-5xl mx-auto mt-8">
+                <div className="p-4 bg-zinc-900/30 border border-zinc-800 rounded-md">
+                  <div className="flex items-start">
+                    <AlertCircle className="w-5 h-5 text-zinc-500 mr-2 mt-0.5" />
+                    <div>
+                      <h3 className="text-sm font-medium text-white mb-1">REFUND_POLICY</h3>
+                      <p className="text-xs text-zinc-400">All purchases are final and non-refundable once coins are credited to your account. Unused coins remain valid for 12 months from the date of purchase. For assistance, contact support.</p>
+                    </div>
                   </div>
                 </div>
               </div>

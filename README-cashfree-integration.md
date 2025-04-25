@@ -1,110 +1,98 @@
 # Cashfree Payment Gateway Integration
 
-This document provides instructions for setting up and using the Cashfree payment gateway integration in our Next.js application with Supabase backend.
-
-## Overview
-
-The integration allows users to purchase coins within the application using the Cashfree payment gateway. The implementation includes:
-
-- API routes for creating payment orders and handling webhooks
-- Frontend components for initiating payments
-- Database tables for tracking orders and transactions
-- Webhook handling for payment status updates
+This documentation outlines the integration of Cashfree Payment Gateway into your Next.js application to enable the coin purchase system.
 
 ## Prerequisites
 
-1. A Cashfree account (register at [Cashfree Payments](https://www.cashfree.com/))
-2. Supabase project with the existing coin system setup
+1. A Cashfree merchant account (sign up at [https://merchant.cashfree.com/cashfree/login](https://merchant.cashfree.com/cashfree/login))
+2. API keys (App ID and Secret Key) from your Cashfree dashboard
+3. Webhook secret from your Cashfree dashboard
 
-## Setup Instructions
+## Configuration
 
-### 1. Database Setup
+Add the following environment variables to your `.env.local` file:
 
-Run the `coin_orders_table.sql` script in your Supabase SQL editor to create the necessary database tables and policies.
-
-### 2. Environment Variables
-
-Add the following variables to your `.env.local` file:
-
-```
-# Cashfree Payment Gateway Credentials
-CASHFREE_APP_ID=your-cashfree-app-id
-CASHFREE_SECRET_KEY=your-cashfree-secret-key
+```env
+# Cashfree Payment Gateway
+CASHFREE_APP_ID=your_cashfree_app_id
+CASHFREE_SECRET_KEY=your_cashfree_secret_key
+CASHFREE_WEBHOOK_SECRET=your_cashfree_webhook_secret
+NEXT_PUBLIC_APP_URL=https://your-app-domain.com
 ```
 
-### 3. Cashfree Account Configuration
+## API Endpoints
 
-1. Log in to your Cashfree account.
-2. Navigate to Developer Options > API Keys.
-3. Copy your App ID and Secret Key.
-4. In the Webhook Settings section, add your webhook URL:
-   - Test Environment: `https://your-domain.com/api/webhook`
-   - Production Environment: `https://your-production-domain.com/api/webhook`
+The integration includes the following API endpoints:
 
-### 4. Deploy the Application
+1. **Create Order**: `/api/payment/create-order`
+   - Creates an order in your database and with Cashfree
+   - Redirects the user to the Cashfree payment page
 
-Ensure all the components are correctly deployed:
+2. **Webhook Handler**: `/api/payment/webhook`
+   - Processes payment status updates from Cashfree
+   - Updates the order status in your database
+   - Adds coins to the user's balance on successful payment
 
-- API Routes (`/api/create-order` and `/api/webhook`)
-- Frontend Components (`BuyCoins.tsx`)
-- Payment Status Page (`/payment-status`)
+3. **Verify Payment**: `/api/payment/verify`
+   - Verifies the payment status with Cashfree
+   - Used by the payment status page to display the correct status
 
-## Usage
+## Database Tables
 
-1. Navigate to the coins page in the dashboard (`/dashboard/coins`).
-2. Choose a coin package and click "Buy Now".
-3. Complete the payment process on the Cashfree checkout page.
-4. Upon successful payment, you'll be redirected back to the application.
+The integration relies on the following database tables:
+
+1. **`coin_orders`**: Stores order information
+   - See `coin_orders_table.sql` for schema details
+   - Contains order ID, user ID, amount, status, etc.
+
+2. **`coin_transactions`**: Records coin transactions
+   - See `coin_system_setup.sql` for schema details
+   - Automatically updates user balance through triggers
+
+## User Flow
+
+1. User selects a coin package on the pricing page and clicks "Buy Now"
+2. The application creates an order and redirects to Cashfree's payment page
+3. User completes the payment on Cashfree's platform
+4. User is redirected back to your application's payment status page
+5. The application verifies the payment status and updates the UI accordingly
+6. On successful payment, coins are added to the user's balance
+
+## Webhook Configuration
+
+To set up the webhook in your Cashfree dashboard:
+
+1. Log in to your Cashfree merchant account
+2. Navigate to Settings > Webhooks
+3. Add a new webhook with URL: `https://your-domain.com/api/payment/webhook`
+4. Select events: Success Payment, Failed Payment, User Dropped Payment, Refund
+5. Save the webhook and note the secret key
 
 ## Testing
 
-### Test Mode
+Cashfree provides a sandbox environment for testing. Use the following test cards:
 
-During development, the integration is set to use Cashfree's sandbox environment. You can use the following test credentials:
+- **Success Payment**: 4111 1111 1111 1111
+- **Failed Payment**: 4111 1111 1111 1111 (with any wrong details)
 
-- Card Number: 4111 1111 1111 1111
-- Expiry: Any future date
-- CVV: Any 3-digit number
-- Name: Any name
-- OTP: 123456
+## Common Issues and Solutions
 
-### Verifying Integration
+1. **Order creation fails**:
+   - Verify your Cashfree API credentials
+   - Check if the customer details are properly formed
 
-1. Make a test purchase.
-2. Check the Supabase database to verify:
-   - An entry was created in the `coin_orders` table
-   - The transaction was recorded in the `coin_transactions` table
-   - The user's coin balance was updated
+2. **Webhook not receiving events**:
+   - Ensure your webhook URL is publicly accessible
+   - Verify that the webhook is properly configured in the Cashfree dashboard
 
-## Troubleshooting
+3. **Payment verification issues**:
+   - Check Cashfree API permissions
+   - Verify signature validation implementation
 
-### Common Issues
+## Production Considerations
 
-1. **Payment fails to initiate**: Check that your Cashfree credentials are correct in the `.env.local` file.
-2. **Webhook not working**: Verify the webhook URL is correctly configured in your Cashfree dashboard.
-3. **Order created but coins not added**: Check the server logs for webhook processing issues.
-
-### Logs
-
-For debugging, check:
-- Next.js server logs for API-related issues
-- Cashfree dashboard for payment status
-- Supabase logs for database operation issues
-
-## Going to Production
-
-When ready to go live:
-
-1. Update the Cashfree environment in your code from SANDBOX to PRODUCTION.
-2. Replace the Cashfree SDK URL in `BuyCoins.tsx`:
-   - Development: `https://sdk.cashfree.com/js/ui/2.0.0/cashfree.sandbox.js`
-   - Production: `https://sdk.cashfree.com/js/ui/2.0.0/cashfree.prod.js`
-3. Update your webhook URL in the Cashfree dashboard to your production domain.
-4. Test thoroughly in the production environment with a real payment.
-
-## Security Considerations
-
-- All sensitive credentials are stored as environment variables
-- Webhook signatures are verified to ensure requests come from Cashfree
-- Idempotency checks prevent duplicate transaction processing
-- Row Level Security ensures users can only access their own data 
+1. Always verify payments server-side before updating user balances
+2. Use HTTPS for all API endpoints
+3. Implement proper error handling and logging
+4. Set up monitoring for failed payments and webhook deliveries
+5. Regularly check for payment reconciliation 

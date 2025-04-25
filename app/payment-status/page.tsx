@@ -3,10 +3,12 @@
 import { useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createBrowserClient } from '@supabase/ssr';
+import { CheckCircle, XCircle, AlertCircle, Loader2 } from 'lucide-react';
 
 function PaymentStatusContent() {
   const [status, setStatus] = useState<'loading' | 'success' | 'failed'>('loading');
   const [message, setMessage] = useState<string>('Verifying payment status...');
+  const [orderDetails, setOrderDetails] = useState<any>(null);
   const searchParams = useSearchParams();
   const router = useRouter();
   const supabase = createBrowserClient(
@@ -16,9 +18,8 @@ function PaymentStatusContent() {
   
   useEffect(() => {
     const orderId = searchParams?.get('order_id');
-    const orderToken = searchParams?.get('order_token');
     
-    if (!orderId || !orderToken) {
+    if (!orderId) {
       setStatus('failed');
       setMessage('Invalid payment information');
       return;
@@ -26,31 +27,57 @@ function PaymentStatusContent() {
     
     const verifyPayment = async () => {
       try {
-        // Query our database for order status
+        // First check the database directly
         const { data: orderData, error } = await supabase
           .from('coin_orders')
-          .select('status')
+          .select('*')
           .eq('order_id', orderId)
           .single();
           
-        if (error || !orderData) {
+        if (error) {
+          console.error('Error fetching order:', error);
+          setStatus('failed');
+          setMessage('Could not verify payment status. Please contact support.');
+          return;
+        }
+
+        // If order exists, check its status
+        if (orderData) {
+          setOrderDetails(orderData);
+          
+          if (orderData.status === 'COMPLETED') {
+            setStatus('success');
+            setMessage('Payment successful! Your coins have been added to your account.');
+            return;
+          } else if (orderData.status === 'FAILED') {
+            setStatus('failed');
+            setMessage('Payment failed or was cancelled. Please try again.');
+            return;
+          }
+        }
+        
+        // If order is still pending, verify with the payment gateway via our API
+        const verifyResponse = await fetch(`/api/payment/verify?orderId=${orderId}`);
+        const verifyData = await verifyResponse.json();
+        
+        if (!verifyResponse.ok) {
+          console.error('Error verifying payment:', verifyData);
           setStatus('failed');
           setMessage('Could not verify payment status. Please contact support.');
           return;
         }
         
-        // Check the status of the order
-        if (orderData.status === 'COMPLETED') {
+        setOrderDetails(verifyData);
+        
+        if (verifyData.status === 'COMPLETED') {
           setStatus('success');
           setMessage('Payment successful! Your coins have been added to your account.');
-        } else if (orderData.status === 'PENDING') {
-          // If still pending, the webhook might not have processed yet
-          // Wait briefly and check again
-          setTimeout(verifyPayment, 3000);
-          return;
-        } else {
+        } else if (verifyData.status === 'FAILED') {
           setStatus('failed');
           setMessage('Payment failed or was cancelled. Please try again.');
+        } else {
+          // If still pending, check again after a short delay
+          setTimeout(verifyPayment, 3000);
         }
       } catch (err) {
         console.error('Error verifying payment:', err);
@@ -67,43 +94,53 @@ function PaymentStatusContent() {
   };
   
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center p-4">
-      <div className="w-full max-w-md rounded-lg border bg-white p-8 shadow-md">
-        <h1 className="mb-6 text-center text-2xl font-bold">
-          {status === 'loading' ? 'Processing Payment'
-            : status === 'success' ? 'Payment Successful'
-            : 'Payment Failed'}
+    <div className="flex min-h-screen flex-col items-center justify-center p-4 bg-black text-white">
+      <div className="w-full max-w-md rounded-lg border border-zinc-800 bg-zinc-900 p-8 shadow-md">
+        <h1 className="mb-6 text-center text-2xl font-bold font-mono">
+          {status === 'loading' ? 'PROCESSING_PAYMENT'
+            : status === 'success' ? 'PAYMENT_SUCCESS'
+            : 'PAYMENT_FAILED'}
         </h1>
         
         <div className="mb-6 text-center">
           {status === 'loading' ? (
             <div className="flex justify-center">
-              <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-t-2 border-primary"></div>
+              <Loader2 className="h-16 w-16 animate-spin text-white" />
             </div>
           ) : status === 'success' ? (
-            <div className="mx-auto mb-4 flex h-24 w-24 items-center justify-center rounded-full bg-green-100">
-              <svg className="h-12 w-12 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
-              </svg>
+            <div className="mx-auto mb-4 flex h-24 w-24 items-center justify-center rounded-full bg-zinc-800">
+              <CheckCircle className="h-12 w-12 text-green-500" />
             </div>
           ) : (
-            <div className="mx-auto mb-4 flex h-24 w-24 items-center justify-center rounded-full bg-red-100">
-              <svg className="h-12 w-12 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path>
-              </svg>
+            <div className="mx-auto mb-4 flex h-24 w-24 items-center justify-center rounded-full bg-zinc-800">
+              <XCircle className="h-12 w-12 text-red-500" />
             </div>
           )}
           
-          <p className="text-gray-700">{message}</p>
+          <p className="text-zinc-300 mt-4">{message}</p>
+          
+          {status === 'success' && orderDetails && (
+            <div className="mt-6 p-4 bg-zinc-800 rounded-lg text-left">
+              <p className="text-zinc-300 text-sm">
+                <span className="font-semibold">Order ID:</span> {orderDetails.orderId}
+              </p>
+              <p className="text-zinc-300 text-sm mt-1">
+                <span className="font-semibold">Amount:</span> ₹{orderDetails.amount}
+              </p>
+              <p className="text-zinc-300 text-sm mt-1">
+                <span className="font-semibold">Coins Added:</span> {orderDetails.coinAmount}
+              </p>
+            </div>
+          )}
         </div>
         
         <div className="flex justify-center">
           {status !== 'loading' && (
             <button
               onClick={handleRedirect}
-              className="rounded-md bg-blue-600 px-4 py-2 text-white transition hover:bg-blue-700"
+              className="rounded-md bg-zinc-800 px-6 py-2 text-white font-mono border border-zinc-700 hover:bg-zinc-700 transition-all duration-200"
             >
-              Back to Dashboard
+              {status === 'success' ? 'BACK_TO_DASHBOARD' : 'TRY_AGAIN'}
             </button>
           )}
         </div>
@@ -115,11 +152,11 @@ function PaymentStatusContent() {
 export default function PaymentStatus() {
   return (
     <Suspense fallback={
-      <div className="flex min-h-screen flex-col items-center justify-center p-4">
-        <div className="w-full max-w-md rounded-lg border bg-white p-8 shadow-md">
-          <h1 className="mb-6 text-center text-2xl font-bold">Loading...</h1>
+      <div className="flex min-h-screen flex-col items-center justify-center p-4 bg-black text-white">
+        <div className="w-full max-w-md rounded-lg border border-zinc-800 bg-zinc-900 p-8 shadow-md">
+          <h1 className="mb-6 text-center text-2xl font-bold font-mono">LOADING</h1>
           <div className="flex justify-center">
-            <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-t-2 border-primary"></div>
+            <Loader2 className="h-16 w-16 animate-spin text-white" />
           </div>
         </div>
       </div>
