@@ -35,6 +35,13 @@ export default function BuyCoins() {
       }
       
       // Redirect to the payment page
+      console.log('Payment data received:', data);
+      
+      if (!data.payment_link) {
+        throw new Error('No payment link received from server');
+      }
+      
+      // Redirect to the payment page
       window.location.href = data.payment_link;
       
     } catch (error) {

@@ -58,9 +58,22 @@ export async function POST(request: Request) {
     
     const cashfreeData = await cashfreeResponse.json();
     
+    // Log the complete response for debugging
+    console.log('Cashfree API response:', JSON.stringify(cashfreeData, null, 2));
+    
     if (!cashfreeResponse.ok) {
       console.error('Cashfree API error:', cashfreeData);
       return NextResponse.json({ error: 'Failed to create payment order' }, { status: 500 });
+    }
+    
+    // Ensure the payment_link exists, or construct a web checkout URL
+    if (!cashfreeData.payment_link) {
+      console.warn('Payment link not found in Cashfree response, constructing fallback URL');
+      if (cashfreeData.payment_session_id) {
+        cashfreeData.payment_link = `https://payments.cashfree.com/order/#${cashfreeData.payment_session_id}`;
+      } else {
+        return NextResponse.json({ error: 'Invalid payment response from gateway' }, { status: 500 });
+      }
     }
     
     // Store the order in our database
