@@ -1,11 +1,12 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Loader2, CheckCircle, XCircle } from 'lucide-react';
 import Link from 'next/link';
 
-export default function PaymentStatusPage() {
+// Client component that uses useSearchParams
+function PaymentStatusContent() {
   const searchParams = useSearchParams();
   const orderId = searchParams?.get('orderId') || null;
   const [status, setStatus] = useState<string | null>(null);
@@ -41,64 +42,73 @@ export default function PaymentStatusPage() {
   }, [orderId]);
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <div className="bg-white p-8 rounded-lg shadow-md max-w-md w-full text-center">
-        <h1 className="text-2xl font-bold mb-6">Payment Status</h1>
+    <div className="bg-white p-8 rounded-lg shadow-md max-w-md w-full text-center">
+      <h1 className="text-2xl font-bold mb-6">Payment Status</h1>
 
-        {isLoading ? (
-          <div className="flex flex-col items-center">
-            <Loader2 className="h-12 w-12 text-blue-500 animate-spin mb-4" />
-            <p className="text-gray-600">Verifying payment status...</p>
-          </div>
-        ) : error ? (
-          <div className="flex flex-col items-center">
-            <XCircle className="h-12 w-12 text-red-500 mb-4" />
-            <p className="text-red-600 mb-4">{error}</p>
+      {isLoading ? (
+        <div className="flex flex-col items-center">
+          <Loader2 className="h-12 w-12 text-blue-500 animate-spin mb-4" />
+          <p className="text-gray-600">Verifying payment status...</p>
+        </div>
+      ) : error ? (
+        <div className="flex flex-col items-center">
+          <XCircle className="h-12 w-12 text-red-500 mb-4" />
+          <p className="text-red-600 mb-4">{error}</p>
+          <Link 
+            href="/dashboard" 
+            className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition"
+          >
+            Back to Dashboard
+          </Link>
+        </div>
+      ) : status === 'COMPLETED' ? (
+        <div className="flex flex-col items-center">
+          <CheckCircle className="h-12 w-12 text-green-500 mb-4" />
+          <p className="text-green-600 text-lg font-semibold mb-2">Payment Successful!</p>
+          <p className="text-gray-600 mb-6">Your coins have been added to your account.</p>
+          <Link 
+            href="/dashboard/coins" 
+            className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition"
+          >
+            View My Coins
+          </Link>
+        </div>
+      ) : (
+        <div className="flex flex-col items-center">
+          <XCircle className="h-12 w-12 text-red-500 mb-4" />
+          <p className="text-red-600 text-lg font-semibold mb-2">Payment Failed</p>
+          <p className="text-gray-600 mb-6">Your payment could not be processed.</p>
+          <div className="flex space-x-4">
+            <Link 
+              href="/pricing" 
+              className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition"
+            >
+              Try Again
+            </Link>
             <Link 
               href="/dashboard" 
-              className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition"
+              className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 transition"
             >
               Back to Dashboard
             </Link>
           </div>
-        ) : status === 'COMPLETED' ? (
-          <div className="flex flex-col items-center">
-            <CheckCircle className="h-12 w-12 text-green-500 mb-4" />
-            <p className="text-green-600 text-lg font-semibold mb-2">Payment Successful!</p>
-            <p className="text-gray-600 mb-6">Your coins have been added to your account.</p>
-            <Link 
-              href="/dashboard/coins" 
-              className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition"
-            >
-              View My Coins
-            </Link>
-          </div>
-        ) : (
-          <div className="flex flex-col items-center">
-            <XCircle className="h-12 w-12 text-red-500 mb-4" />
-            <p className="text-red-600 text-lg font-semibold mb-2">Payment Failed</p>
-            <p className="text-gray-600 mb-6">Your payment could not be processed.</p>
-            <div className="flex space-x-4">
-              <Link 
-                href="/pricing" 
-                className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition"
-              >
-                Try Again
-              </Link>
-              <Link 
-                href="/dashboard" 
-                className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 transition"
-              >
-                Back to Dashboard
-              </Link>
-            </div>
-          </div>
-        )}
+        </div>
+      )}
 
-        {orderId && (
-          <p className="mt-6 text-sm text-gray-500">Order ID: {orderId}</p>
-        )}
-      </div>
+      {orderId && (
+        <p className="mt-6 text-sm text-gray-500">Order ID: {orderId}</p>
+      )}
+    </div>
+  );
+}
+
+// Main page component with Suspense boundary
+export default function PaymentStatusPage() {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <Suspense fallback={<div className="flex items-center justify-center"><Loader2 className="h-12 w-12 text-blue-500 animate-spin" /></div>}>
+        <PaymentStatusContent />
+      </Suspense>
     </div>
   );
 } 
