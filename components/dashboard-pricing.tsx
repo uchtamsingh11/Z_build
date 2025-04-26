@@ -3,16 +3,27 @@
 import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardHeader, CardFooter, CardTitle, CardDescription } from '@/components/ui/card'
-import { AlertCircle, BadgeCheck, Clock, Coins, CreditCard } from 'lucide-react'
+import { AlertCircle, BadgeCheck, Clock, Coins, CreditCard, Loader2 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import TransactionHistoryModal from './transaction-history-modal'
 import { createBrowserClient } from '@supabase/ssr'
+
+// Declare cashfree type for TypeScript
+declare global {
+  interface Window {
+    Cashfree: any;
+  }
+}
 
 export default function DashboardPricing() {
     const [showHistory, setShowHistory] = useState(false);
     const [customAmount, setCustomAmount] = useState(500);
     const [customCoins, setCustomCoins] = useState(500);
     const [userBalance, setUserBalance] = useState(0);
+    const [isLoading, setIsLoading] = useState(false);
+    const [processingPaymentFor, setProcessingPaymentFor] = useState<number | null>(null);
+    const [directCheckoutReady, setDirectCheckoutReady] = useState(false);
+    
     const supabase = createBrowserClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -25,32 +36,33 @@ export default function DashboardPricing() {
 
     // Fetch user's coin balance on component mount
     useEffect(() => {
-        async function fetchUserBalance() {
-            try {
-                const { data: { user } } = await supabase.auth.getUser();
-                if (!user) return;
-
-                const { data, error } = await supabase
-                    .from('users')
-                    .select('coin_balance')
-                    .eq('id', user.id)
-                    .single();
-
-                if (error) {
-                    console.error('Error fetching user balance:', error);
-                    return;
-                }
-
-                if (data) {
-                    setUserBalance(data.coin_balance || 0);
-                }
-            } catch (error) {
-                console.error('Error:', error);
-            }
-        }
-
         fetchUserBalance();
     }, []);
+    
+    // Function to fetch user balance - separate so we can call it after payment too
+    const fetchUserBalance = async () => {
+        try {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) return;
+
+            const { data, error } = await supabase
+                .from('profiles')
+                .select('coin_balance')
+                .eq('id', user.id)
+                .single();
+
+            if (error) {
+                console.error('Error fetching user balance:', error);
+                return;
+            }
+
+            if (data) {
+                setUserBalance(data.coin_balance || 0);
+            }
+        } catch (error) {
+            console.error('Error:', error);
+        }
+    };
 
     const handleHistoryClick = () => {
         setShowHistory(true);
@@ -65,40 +77,90 @@ export default function DashboardPricing() {
         setCustomAmount(value);
     };
 
-    const handlePurchase = async (amount: number) => {
+    const handlePurchase = async (amount: number, coins: number) => {
         try {
+            setIsLoading(true);
+            setProcessingPaymentFor(coins);
+            
             // Get the current user
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) {
                 alert('Please log in to purchase coins');
                 return;
             }
-
-            // Create a transaction record
-            const { error } = await supabase
-                .from('coin_transactions')
-                .insert({
-                    user_id: user.id,
+            
+            // Call our Cashfree API to create an order
+            console.log('Creating payment order:', { amount, coins });
+            const response = await fetch('/api/payment/create-order', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
                     amount: amount,
-                    transaction_type: 'recharge',
-                    description: `Purchased ${amount} coins`
-                });
-
-            if (error) {
-                console.error('Error creating transaction:', error);
-                alert('Failed to complete purchase');
+                    coins: coins
+                }),
+            });
+            
+            const data = await response.json();
+            
+            // Log the response
+            console.log('Payment data received:', data);
+            
+            if (!response.ok) {
+                console.error('Payment API error:', data);
+                throw new Error(data.error || 'Failed to create order');
+            }
+            
+            // Prioritize payment_link (most reliable method)
+            if (data.payment_link) {
+                window.location.href = data.payment_link;
+                return;
+            } 
+            
+            // Fallback to Direct Checkout only if SDK is fully loaded
+            if (data.payment_session_id && directCheckoutReady && window.Cashfree) {
+                try {
+                    const cashfree = new window.Cashfree(data.payment_session_id);
+                    cashfree.redirect();
+                    return;
+                } catch (directError) {
+                    console.error('Direct checkout error:', directError);
+                    // Continue to session ID fallback if direct checkout fails
+                }
+            }
+            
+            // Last resort: session_id URL redirect 
+            if (data.payment_session_id) {
+                window.location.href = `https://payments.cashfree.com/order/#${data.payment_session_id}`;
                 return;
             }
-
-            // Update local state (the trigger will update the user's balance in the database)
-            setUserBalance(prev => prev + amount);
-            alert(`Successfully purchased ${amount} coins!`);
-
+            
+            throw new Error('Payment gateway error: Required payment data missing');
+            
         } catch (error) {
-            console.error('Error processing purchase:', error);
-            alert('An error occurred while processing your purchase');
+            console.error('Payment error:', error);
+            alert('Payment initialization failed. Please try again later.');
+        } finally {
+            setIsLoading(false);
+            setProcessingPaymentFor(null);
         }
     };
+
+    // Load Cashfree SDK for Direct Checkout fallback
+    useEffect(() => {
+        // Only load the script once
+        if (!document.getElementById('cashfree-script')) {
+            const script = document.createElement('script');
+            script.id = 'cashfree-script';
+            script.src = 'https://sdk.cashfree.com/js/ui/2.0.0/cashfree.prod.js'; // Production
+            script.async = true;
+            script.onload = () => setDirectCheckoutReady(true);
+            document.body.appendChild(script);
+        } else if (window.Cashfree) {
+            setDirectCheckoutReady(true);
+        }
+    }, []);
 
     return (
         <div className="max-w-6xl mx-auto pb-24">
@@ -129,9 +191,14 @@ export default function DashboardPricing() {
                     <CardFooter className="px-6 pb-8">
                         <Button 
                             className="w-full h-12 bg-zinc-800 hover:bg-zinc-700 text-white border-zinc-700 mt-4"
-                            onClick={() => handlePurchase(1000)}
+                            onClick={() => handlePurchase(999, 1000)}
+                            disabled={isLoading}
                         >
-                            BUY_NOW
+                            {isLoading && processingPaymentFor === 1000 ? (
+                                <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Processing</>
+                            ) : (
+                                'BUY_NOW'
+                            )}
                         </Button>
                     </CardFooter>
                 </Card>
@@ -168,9 +235,14 @@ export default function DashboardPricing() {
                     <CardFooter className="px-6 pb-8">
                         <Button 
                             className="w-full h-12 bg-zinc-800 hover:bg-zinc-700 text-white border-zinc-700 mt-4"
-                            onClick={() => handlePurchase(2500)}
+                            onClick={() => handlePurchase(2249, 2500)}
+                            disabled={isLoading}
                         >
-                            BUY_NOW
+                            {isLoading && processingPaymentFor === 2500 ? (
+                                <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Processing</>
+                            ) : (
+                                'BUY_NOW'
+                            )}
                         </Button>
                     </CardFooter>
                 </Card>
@@ -211,9 +283,14 @@ export default function DashboardPricing() {
                     <CardFooter className="px-6 pb-8">
                         <Button 
                             className="w-full h-12 bg-zinc-800 hover:bg-zinc-700 text-white border-zinc-700 mt-4"
-                            onClick={() => handlePurchase(customAmount)}
+                            onClick={() => handlePurchase(customAmount, customCoins)}
+                            disabled={isLoading}
                         >
-                            BUY_NOW
+                            {isLoading && processingPaymentFor === customCoins ? (
+                                <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Processing</>
+                            ) : (
+                                'BUY_NOW'
+                            )}
                         </Button>
                     </CardFooter>
                 </Card>

@@ -24,7 +24,7 @@ export async function POST(request: Request) {
       
       // Get the request data
       const requestData = await request.json();
-      const { amount = 1, currency = 'INR' } = requestData;
+      const { amount = 1, coins = amount, currency = 'INR' } = requestData;
       
       if (!amount || amount <= 0) {
         return NextResponse.json({ error: 'Valid amount is required' }, { status: 400 });
@@ -36,7 +36,7 @@ export async function POST(request: Request) {
       
       // The absolute URL for return with comprehensive parameters
       const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
-      const returnUrl = `${appUrl}/payment/status?orderId=${orderId}&amount=${amount}&ts=${Date.now()}`;
+      const returnUrl = `${appUrl}/payment/status?orderId=${orderId}&amount=${amount}&coins=${coins}&ts=${Date.now()}`;
       
       // Create order in Cashfree - follow exact API structure
       const orderPayload = {
@@ -52,10 +52,11 @@ export async function POST(request: Request) {
         order_meta: {
           return_url: returnUrl,
           notify_url: `${appUrl}/api/payment/webhook`,
-          payment_methods: "" // Empty string allows all payment methods
+          payment_methods: "", // Empty string allows all payment methods
+          coins: coins.toString() // Store coins in meta data for reference
         },
         order_expiry_time: getExpiryTime(), // Set expiry time to 25 mins instead of default 30
-        order_note: `Simple payment of Rs. ${amount}`
+        order_note: `Purchase of ${coins} coins`
       };
       
       console.log(`[Attempt ${retryCount + 1}] Sending order payload to Cashfree:`, JSON.stringify(orderPayload, null, 2));
@@ -117,6 +118,7 @@ export async function POST(request: Request) {
           user_id: user.id,
           order_id: orderId,
           amount: amount,
+          coins: coins,
           status: 'PENDING',
           payment_session_id: cashfreeData.payment_session_id || null,
           created_at: new Date().toISOString()
@@ -131,7 +133,8 @@ export async function POST(request: Request) {
       return NextResponse.json({
         order_id: orderId,
         payment_session_id: cashfreeData.payment_session_id,
-        payment_link: cashfreeData.payment_link
+        payment_link: cashfreeData.payment_link,
+        coins: coins
       });
       
     } catch (error) {

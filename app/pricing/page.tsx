@@ -16,7 +16,7 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar"
 import { redirect } from 'next/navigation'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/server'
 import { createBrowserClient } from '@supabase/ssr'
 import { User } from '@supabase/supabase-js'
@@ -36,6 +36,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import DashboardPricing from "@/components/dashboard-pricing"
+import { useRouter } from 'next/navigation'
 
 export default function Page() {
   const [user, setUser] = useState<User | null>(null)
@@ -43,6 +44,13 @@ export default function Page() {
   const [showHistory, setShowHistory] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [processingPaymentFor, setProcessingPaymentFor] = useState<number | null>(null)
+  const [userBalance, setUserBalance] = useState<number | null>(null)
+  const [transactions, setTransactions] = useState<any[]>([])
+  const [directCheckoutReady, setDirectCheckoutReady] = useState(false)
+  const [isTouch, setIsTouch] = useState(false)
+  const [activeTab, setActiveTab] = useState(0)
+  const router = useRouter()
+  const [formattedBalance, setFormattedBalance] = useState('0')
   
   useEffect(() => {
     async function checkAuth() {
@@ -63,6 +71,21 @@ export default function Page() {
     }
     
     checkAuth()
+  }, [])
+
+  // Load Cashfree SDK
+  useEffect(() => {
+    // Only load the script once
+    if (!document.getElementById('cashfree-script')) {
+      const script = document.createElement('script')
+      script.id = 'cashfree-script'
+      script.src = 'https://sdk.cashfree.com/js/ui/2.0.0/cashfree.prod.js'
+      script.async = true
+      script.onload = () => setDirectCheckoutReady(true)
+      document.body.appendChild(script)
+    } else if (window.Cashfree) {
+      setDirectCheckoutReady(true)
+    }
   }, [])
 
   const handleHistoryClick = () => {
@@ -92,12 +115,39 @@ export default function Page() {
       
       const data = await response.json()
       
+      // Log the response
+      console.log('Payment data received:', data)
+      
       if (!response.ok) {
+        console.error('Payment API error:', data)
         throw new Error(data.error || 'Failed to create order')
       }
       
-      // Redirect to the payment page
-      window.location.href = data.payment_link
+      // Prioritize payment_link (most reliable method)
+      if (data.payment_link) {
+        window.location.href = data.payment_link
+        return
+      } 
+      
+      // Fallback to Direct Checkout if payment_session_id exists and SDK is fully loaded
+      if (data.payment_session_id && directCheckoutReady && window.Cashfree) {
+        try {
+          const cashfree = new window.Cashfree(data.payment_session_id)
+          cashfree.redirect()
+          return
+        } catch (directError) {
+          console.error('Direct checkout error:', directError)
+          // Continue to session ID fallback if direct checkout fails
+        }
+      }
+      
+      // Last resort: session_id URL redirect 
+      if (data.payment_session_id) {
+        window.location.href = `https://payments.cashfree.com/order/#${data.payment_session_id}`
+        return
+      }
+      
+      throw new Error('Payment gateway error: Required payment data missing')
       
     } catch (error) {
       console.error('Payment error:', error)
