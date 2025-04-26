@@ -1,5 +1,5 @@
 import { Metadata } from 'next';
-import BuyCoins from '@/components/BuyCoins';
+// import BuyCoins from '@/components/BuyCoins';
 import { createClient } from '@/lib/supabase/server';
 import { cookies } from 'next/headers';
 import CoinsHeader from '@/components/CoinsHeader';
@@ -45,7 +45,7 @@ export default async function CoinsPage() {
     <div className="container mx-auto px-4 py-8">
       <CoinsHeader coinBalance={coinBalance} />
       
-      <BuyCoins />
+      {/* <BuyCoins /> */}
       
       <div className="mt-8">
         <h2 className="text-xl font-semibold mb-4">Recent Transactions</h2>
