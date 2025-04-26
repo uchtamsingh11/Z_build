@@ -1,106 +1,171 @@
 'use client';
 
 import { useEffect, useState, Suspense } from 'react';
-import { useSearchParams } from 'next/navigation';
-import { Button } from '@/components/ui/button';
-import { Loader2, CheckCircle, XCircle } from 'lucide-react';
+import { useSearchParams, useRouter } from 'next/navigation';
+import { Loader2, CheckCircle, XCircle, RefreshCw } from 'lucide-react';
 import Link from 'next/link';
-import { createClient } from '@/lib/supabase/client';
+import { Button } from '@/components/ui/button';
 
 // Client component that uses useSearchParams
 function PaymentStatusContent() {
-  const [status, setStatus] = useState<'loading' | 'success' | 'failed'>('loading');
-  const [message, setMessage] = useState<string>('Verifying your payment...');
   const searchParams = useSearchParams();
-  
-  // Support both `orderId` (our format) and `order_id` (Cashfree format)
-  const orderId = searchParams?.get('orderId') || searchParams?.get('order_id') || null;
-  
+  const router = useRouter();
+  const orderId = searchParams?.get('orderId') || null;
+  const amount = searchParams?.get('amount') || null;
+  const [status, setStatus] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [verificationAttempts, setVerificationAttempts] = useState(0);
+  const [orderDetails, setOrderDetails] = useState<any>(null);
+
+  // Function to check payment status with retries
+  const checkPaymentStatus = async (isManualRetry = false) => {
+    try {
+      if (isManualRetry) {
+        setIsLoading(true);
+        setError(null);
+      }
+      
+      console.log(`Checking payment status for order ${orderId}, attempt ${verificationAttempts + 1}`);
+      
+      const response = await fetch(`/api/payment/verify?orderId=${orderId}&_t=${Date.now()}`);
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to verify payment');
+      }
+
+      setOrderDetails(data.order || null);
+      setStatus(data.status);
+      
+      // If the status is still PENDING and we've made fewer than 3 automatic checks,
+      // schedule another verification attempt after a short delay
+      if (data.status === 'PENDING' && verificationAttempts < 3 && !isManualRetry) {
+        setVerificationAttempts(prev => prev + 1);
+        setTimeout(() => checkPaymentStatus(), 3000); // Check again after 3 seconds
+      } else {
+        setIsLoading(false);
+      }
+    } catch (error) {
+      console.error('Payment verification error:', error);
+      setError('Failed to verify payment status. Please try again or contact support.');
+      setIsLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (!orderId) {
-      setStatus('failed');
-      setMessage('Invalid payment reference. Order ID is missing.');
+      setError('Order ID is missing');
+      setIsLoading(false);
       return;
     }
-    
-    async function checkPaymentStatus() {
-      try {
-        const supabase = createClient();
-        
-        // Check if the order exists and what its status is
-        const { data, error } = await supabase
-          .from('coin_orders')
-          .select('*')
-          .eq('order_id', orderId)
-          .single();
-        
-        if (error || !data) {
-          console.error('Error fetching order:', error);
-          setStatus('failed');
-          setMessage('Unable to verify payment. Order not found.');
-          return;
-        }
-        
-        // If the order is marked as completed, it's successful
-        if (data.status === 'COMPLETED') {
-          setStatus('success');
-          setMessage(`Payment successful! ${data.coins} coins have been added to your account.`);
-        } else {
-          // For demo purposes, let's assume payment is successful if we find the order
-          // In production, you would check against Cashfree's API
-          setStatus('success');
-          setMessage(`Payment processed! ${data.coins} coins will be added to your account shortly.`);
-          
-          // Update the order status to completed
-          await supabase
-            .from('coin_orders')
-            .update({ status: 'COMPLETED' })
-            .eq('order_id', orderId);
-        }
-      } catch (err) {
-        console.error('Error checking payment status:', err);
-        setStatus('failed');
-        setMessage('An error occurred while verifying your payment.');
-      }
-    }
-    
+
     checkPaymentStatus();
-  }, [orderId]);
+  }, [orderId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleBackToDashboard = () => {
+    router.push('/dashboard');
+  };
   
+  const handleRetryVerification = () => {
+    checkPaymentStatus(true);
+  };
+
   return (
-    <div className="flex flex-col items-center justify-center p-8">
-      <div className="w-full max-w-md p-6 bg-white rounded-lg shadow-lg">
-        <div className="text-center mb-6">
-          <h1 className="text-2xl font-bold mb-2">Payment Status</h1>
-          
-          {status === 'loading' && (
-            <div className="flex flex-col items-center justify-center p-4">
-              <Loader2 className="h-12 w-12 text-blue-500 animate-spin mb-4" />
-              <p className="text-gray-600">{message}</p>
-            </div>
-          )}
-          
-          {status === 'success' && (
-            <div className="flex flex-col items-center justify-center p-4">
-              <CheckCircle className="h-12 w-12 text-green-500 mb-4" />
-              <p className="text-gray-600">{message}</p>
-            </div>
-          )}
-          
-          {status === 'failed' && (
-            <div className="flex flex-col items-center justify-center p-4">
-              <XCircle className="h-12 w-12 text-red-500 mb-4" />
-              <p className="text-gray-600">{message}</p>
-            </div>
+    <div className="bg-white p-8 rounded-lg shadow-md max-w-md w-full text-center">
+      <h1 className="text-2xl font-bold mb-6">Payment Status</h1>
+
+      {isLoading ? (
+        <div className="flex flex-col items-center">
+          <Loader2 className="h-12 w-12 text-blue-500 animate-spin mb-4" />
+          <p className="text-gray-600">
+            {verificationAttempts > 0 
+              ? `Verifying payment status (attempt ${verificationAttempts + 1})...` 
+              : 'Verifying payment status...'}
+          </p>
+        </div>
+      ) : error ? (
+        <div className="flex flex-col items-center">
+          <XCircle className="h-12 w-12 text-red-500 mb-4" />
+          <p className="text-red-600 mb-4">{error}</p>
+          <div className="flex space-x-4">
+            <Button 
+              onClick={handleRetryVerification}
+              className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition flex items-center"
+            >
+              <RefreshCw className="h-4 w-4 mr-2" /> Check Again
+            </Button>
+            <Button 
+              onClick={handleBackToDashboard}
+              className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 transition"
+            >
+              Back to Dashboard
+            </Button>
+          </div>
+        </div>
+      ) : status === 'COMPLETED' ? (
+        <div className="flex flex-col items-center">
+          <CheckCircle className="h-12 w-12 text-green-500 mb-4" />
+          <p className="text-green-600 text-lg font-semibold mb-2">Payment Successful!</p>
+          <p className="text-gray-600 mb-6">Your payment has been processed successfully.</p>
+          <Button 
+            onClick={handleBackToDashboard}
+            className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition"
+          >
+            Back to Dashboard
+          </Button>
+        </div>
+      ) : status === 'PENDING' ? (
+        <div className="flex flex-col items-center">
+          <Loader2 className="h-12 w-12 text-yellow-500 mb-4" />
+          <p className="text-yellow-600 text-lg font-semibold mb-2">Payment Processing</p>
+          <p className="text-gray-600 mb-6">Your payment is being processed. This may take a moment.</p>
+          <div className="flex space-x-4">
+            <Button 
+              onClick={handleRetryVerification}
+              className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition flex items-center"
+            >
+              <RefreshCw className="h-4 w-4 mr-2" /> Check Again
+            </Button>
+            <Button 
+              onClick={handleBackToDashboard}
+              className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 transition"
+            >
+              Back to Dashboard
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <div className="flex flex-col items-center">
+          <XCircle className="h-12 w-12 text-red-500 mb-4" />
+          <p className="text-red-600 text-lg font-semibold mb-2">Payment Failed</p>
+          <p className="text-gray-600 mb-6">Your payment could not be processed.</p>
+          <div className="flex space-x-4">
+            <Button 
+              onClick={() => router.push('/dashboard/payment')}
+              className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition"
+            >
+              Try Again
+            </Button>
+            <Button 
+              onClick={() => router.push('/dashboard')}
+              className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 transition"
+            >
+              Back to Dashboard
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {orderId && (
+        <div className="mt-6 border-t border-gray-200 pt-4">
+          <p className="text-sm text-gray-500">Order ID: {orderId}</p>
+          {amount && <p className="text-sm text-gray-500 mt-1">Amount: ₹{amount}</p>}
+          {orderDetails?.payment_session_id && (
+            <p className="text-sm text-gray-500 mt-1">Session ID: {orderDetails.payment_session_id.substring(0, 12)}...</p>
           )}
         </div>
-        
-        <div className="flex justify-center">
-          <Link href="/dashboard/coins">
-            <Button>Go to Coin Dashboard</Button>
-          </Link>
-        </div>
-      </div>
+      )}
     </div>
   );
 }
@@ -108,12 +173,10 @@ function PaymentStatusContent() {
 // Main page component with Suspense boundary
 export default function PaymentStatusPage() {
   return (
-    <Suspense fallback={
-      <div className="flex items-center justify-center min-h-screen">
-        <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
-      </div>
-    }>
-      <PaymentStatusContent />
-    </Suspense>
+    <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <Suspense fallback={<div className="flex items-center justify-center"><Loader2 className="h-12 w-12 text-blue-500 animate-spin" /></div>}>
+        <PaymentStatusContent />
+      </Suspense>
+    </div>
   );
 } 

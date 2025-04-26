@@ -36,16 +36,33 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Invalid order data' }, { status: 400 });
     }
     
+    console.log('Webhook received for order:', orderId, 'Status:', orderStatus);
+    
     // Fetch the order from our database
     const { data: orderData, error: orderError } = await supabase
-      .from('coin_orders')
-      .select('user_id, status, coins')
+      .from('payment_orders')
+      .select('user_id, status')
       .eq('order_id', orderId)
       .single();
     
-    if (orderError || !orderData) {
+    if (orderError) {
       console.error('Order not found:', orderId);
-      return NextResponse.json({ error: 'Order not found' }, { status: 404 });
+      // If order is not found, create it
+      const { error: insertError } = await supabase
+        .from('payment_orders')
+        .insert({
+          order_id: orderId,
+          amount: orderAmount || 1,
+          status: orderStatus === 'PAID' ? 'COMPLETED' : 
+                  (orderStatus === 'FAILED' || orderStatus === 'CANCELLED') ? 'FAILED' : 'PENDING',
+          // We don't have user_id in webhook, will be updated later
+        });
+        
+      if (insertError) {
+        console.error('Failed to create order:', insertError);
+      }
+      
+      return NextResponse.json({ message: 'Webhook processed' });
     }
     
     // Check if the order is already processed
@@ -57,7 +74,7 @@ export async function POST(request: Request) {
     if (orderStatus === 'PAID') {
       // Update order status to COMPLETED
       const { error: updateError } = await supabase
-        .from('coin_orders')
+        .from('payment_orders')
         .update({ status: 'COMPLETED' })
         .eq('order_id', orderId);
       
@@ -66,26 +83,11 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: 'Failed to update order' }, { status: 500 });
       }
       
-      // Add the coins to the user's balance by creating a transaction
-      const { error: transactionError } = await supabase
-        .from('coin_transactions')
-        .insert({
-          user_id: orderData.user_id,
-          amount: orderData.coins,
-          transaction_type: 'recharge',
-          description: `Payment completed for order ${orderId}`
-        });
-      
-      if (transactionError) {
-        console.error('Failed to create transaction:', transactionError);
-        return NextResponse.json({ error: 'Failed to create transaction' }, { status: 500 });
-      }
-      
       return NextResponse.json({ message: 'Payment processed successfully' });
     } else if (orderStatus === 'FAILED' || orderStatus === 'CANCELLED') {
       // Update order status to FAILED
       const { error: updateError } = await supabase
-        .from('coin_orders')
+        .from('payment_orders')
         .update({ status: 'FAILED' })
         .eq('order_id', orderId);
       
