@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { SupabaseClient } from '@supabase/supabase-js';
 
 // Cashfree API constants
 const CASHFREE_API_VERSION = '2023-08-01';
@@ -253,7 +254,7 @@ export async function GET(request: Request) {
 }
 
 // Helper function to add coins to user balance
-async function addCoinsToUserBalance(supabase, userId, coinsAmount, orderId) {
+async function addCoinsToUserBalance(supabase: SupabaseClient, userId: string, coinsAmount: number, orderId: string) {
   try {
     console.log(`Adding ${coinsAmount} coins to user ${userId} for order ${orderId}`);
     
