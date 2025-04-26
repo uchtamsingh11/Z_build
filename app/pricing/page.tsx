@@ -15,9 +15,7 @@ import {
   SidebarProvider,
   SidebarTrigger,
 } from "@/components/ui/sidebar"
-import { redirect } from 'next/navigation'
 import { useState, useEffect, useCallback } from 'react'
-import { createClient } from '@/lib/supabase/server'
 import { createBrowserClient } from '@supabase/ssr'
 import { User } from '@supabase/supabase-js'
 import { CoinBalanceDisplay } from "@/components/coin-balance-display"
@@ -34,8 +32,6 @@ import {
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import DashboardPricing from "@/components/dashboard-pricing"
 import { useRouter } from 'next/navigation'
 
 export default function Page() {
@@ -327,13 +323,13 @@ export default function Page() {
                       
                       <div className="flex flex-col items-center">
                         <div className="flex items-center text-center mb-4">
-                          <span className="text-4xl font-bold text-white">500</span>
+                          <span className="text-4xl font-bold text-white">1</span>
                           <Coins className="h-7 w-7 ml-2 text-amber-500" />
                         </div>
                         
                         <div className="flex items-center mb-4">
                           <span className="text-2xl font-semibold text-white">₹</span>
-                          <span className="text-2xl font-semibold text-white ml-1">500</span>
+                          <span className="text-2xl font-semibold text-white ml-1">1</span>
                         </div>
                         
                         <p className="text-xs text-zinc-400 mt-1 mb-4">₹1 = 1 Coin</p>
@@ -343,10 +339,10 @@ export default function Page() {
                     <CardFooter className="px-6 pb-8">
                       <Button 
                         className="w-full h-12 bg-zinc-800 hover:bg-zinc-700 text-white border-zinc-700 mt-4"
-                        onClick={() => handlePurchase(500, 500)}
+                        onClick={() => handlePurchase(1, 1)}
                         disabled={isLoading}
                       >
-                        {isLoading && processingPaymentFor === 500 ? (
+                        {isLoading && processingPaymentFor === 1 ? (
                           <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> PROCESSING</>
                         ) : (
                           'BUY_NOW'
