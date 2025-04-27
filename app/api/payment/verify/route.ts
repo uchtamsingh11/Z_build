@@ -69,7 +69,7 @@ export async function GET(request: Request) {
           const { data: coinTransaction, error: coinError } = await supabase
             .from('coin_transactions')
             .select('*')
-            .eq('order_id', orderId)
+            .eq('external_reference', orderId)
             .single();
             
           if (coinTransaction) {
@@ -344,7 +344,7 @@ async function addCoinsToUserBalance(supabase: SupabaseClient, userId: string, c
     const { data: existingTransaction } = await supabase
       .from('coin_transactions')
       .select('id')
-      .eq('order_id', orderId)
+      .eq('external_reference', orderId)
       .eq('user_id', userId)
       .eq('transaction_type', 'recharge')
       .single();
@@ -365,6 +365,23 @@ async function addCoinsToUserBalance(supabase: SupabaseClient, userId: string, c
     if (error) {
       console.error('Failed to add coins to user balance:', error);
       throw error;
+    }
+    
+    // Update the payment_orders table to mark coins as credited
+    const { error: updateError } = await supabase
+      .from('payment_orders')
+      .update({ 
+        coins_credited: true,
+        updated_at: new Date().toISOString()
+      })
+      .eq('order_id', orderId)
+      .eq('user_id', userId);
+      
+    if (updateError) {
+      console.error('Failed to update payment order coins_credited flag:', updateError);
+      // Continue despite the error
+    } else {
+      console.log(`Updated payment_orders.coins_credited for order ${orderId}`);
     }
     
     console.log(`Successfully added ${coinsAmount} coins to user ${userId}`);
