@@ -88,9 +88,10 @@ export default function BrokerAuthContent() {
       setSavedBrokers(data || []);
     } catch (error: any) {
       showNotification({
-        title: 'Failed to load saved brokers',
-        description: error.message,
+        title: 'BROKER_FETCH_ERROR',
+        description: 'Unable to retrieve your saved broker connections. Please try again later.',
         type: 'error',
+        duration: 5000
       });
     } finally {
       setLoading(false);
@@ -123,11 +124,10 @@ export default function BrokerAuthContent() {
             
             // Show error notification
             showNotification({
-              title: 'Login denied by Dhan',
-              description: `${errorData.details?.message || errorData.details?.error || errorData.error || 'Authentication failed'} 
-              ${errorData.status ? `(Status: ${errorData.status} ${errorData.statusText})` : ''}
-              ${errorData.endpoint ? `Endpoint: ${errorData.endpoint}` : ''}`,
+              title: 'DHAN_AUTH_FAILED',
+              description: `Broker authentication failed. Please check your credentials and try again.`,
               type: 'error',
+              duration: 5000
             });
             
             // Remove this broker from loading state
@@ -139,9 +139,14 @@ export default function BrokerAuthContent() {
           setSavedBrokers(prev => prev.map(b => b.id === broker.id ? { ...b, is_active: true } : b));
           
           showNotification({
-            title: 'Broker login authenticated successfully',
+            title: 'DHAN_AUTH_SUCCESS',
+            description: 'Your Dhan broker connection is now active and ready to use.',
             type: 'success',
+            duration: 3000
           });
+
+          // Create a session for the authenticated broker
+          await createOrUpdateSession(broker.id, true);
         } else {
           // Deactivating Dhan broker
           const response = await fetch('/api/brokers/dhan/deactivate', {
@@ -161,9 +166,14 @@ export default function BrokerAuthContent() {
           setSavedBrokers(prev => prev.map(b => b.id === broker.id ? { ...b, is_active: false } : b));
           
           showNotification({
-            title: 'Broker deactivated',
+            title: 'DHAN_DEACTIVATED',
+            description: 'Your Dhan broker connection has been deactivated successfully.',
             type: 'success',
+            duration: 3000
           });
+
+          // Deactivate the session for this broker
+          await createOrUpdateSession(broker.id, false);
         }
         
         // Remove this broker from loading state
@@ -191,9 +201,10 @@ export default function BrokerAuthContent() {
             
             // Show error notification
             showNotification({
-              title: 'Upstox Verification Failed',
-              description: responseData.error || 'No profile found. Please check your token.',
+              title: 'UPSTOX_AUTH_FAILED',
+              description: 'Broker verification failed. Please check your access token and try again.',
               type: 'error',
+              duration: 5000
             });
             
             // Remove this broker from loading state
@@ -205,9 +216,14 @@ export default function BrokerAuthContent() {
           setSavedBrokers(prev => prev.map(b => b.id === broker.id ? { ...b, is_active: true } : b));
           
           showNotification({
-            title: 'Upstox authentication success',
+            title: 'UPSTOX_AUTH_SUCCESS',
+            description: 'Your Upstox broker connection is now active and ready to use.',
             type: 'success',
+            duration: 3000
           });
+
+          // Create a session for the authenticated broker
+          await createOrUpdateSession(broker.id, true);
         } else {
           // Deactivating Upstox broker
           const response = await fetch('/api/brokers/upstox/deactivate', {
@@ -227,9 +243,14 @@ export default function BrokerAuthContent() {
           setSavedBrokers(prev => prev.map(b => b.id === broker.id ? { ...b, is_active: false } : b));
           
           showNotification({
-            title: 'Upstox deactivated',
+            title: 'UPSTOX_DEACTIVATED',
+            description: 'Your Upstox broker connection has been deactivated successfully.',
             type: 'success',
+            duration: 3000
           });
+
+          // Deactivate the session for this broker
+          await createOrUpdateSession(broker.id, false);
         }
         
         // Remove this broker from loading state
@@ -257,9 +278,13 @@ export default function BrokerAuthContent() {
       );
       
       showNotification({
-        title: newStatus ? 'Broker Activated' : 'Broker Deactivated',
+        title: newStatus ? 'BROKER_ACTIVATED' : 'BROKER_DEACTIVATED',
         type: 'success',
+        duration: 3000
       });
+
+      // Create or deactivate session based on new status
+      await createOrUpdateSession(broker.id, newStatus);
       
       // Remove this broker from loading state
       setLoadingBrokers(prev => prev.filter(id => id !== broker.id));
@@ -268,10 +293,42 @@ export default function BrokerAuthContent() {
       setLoadingBrokers(prev => prev.filter(id => id !== broker.id));
       
       showNotification({
-        title: 'Failed to update broker status',
-        description: error.message,
+        title: 'BROKER_TOGGLE_ERROR',
+        description: 'Failed to update the broker status. Please try again later.',
         type: 'error',
+        duration: 5000
       });
+    }
+  };
+
+  const createOrUpdateSession = async (brokerId: string, active: boolean) => {
+    try {
+      const response = await fetch('/api/brokers/sessions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          broker_id: brokerId,
+          active: active
+        }),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to manage broker session');
+      }
+      
+      return true;
+    } catch (error: any) {
+      console.error('Session management error:', error);
+      showNotification({
+        title: 'SESSION_ERROR',
+        description: 'Unable to manage broker session. Trading functionality may be limited.',
+        type: 'error',
+        duration: 5000
+      });
+      return false;
     }
   };
 
@@ -290,14 +347,17 @@ export default function BrokerAuthContent() {
       setSavedBrokers(prev => prev.filter(b => b.id !== broker.id));
       
       showNotification({
-        title: 'Broker Deleted Successfully',
+        title: 'BROKER_DELETED',
+        description: 'The broker connection has been permanently removed from your account.',
         type: 'success',
+        duration: 3000
       });
     } catch (error: any) {
       showNotification({
-        title: 'Failed to delete broker',
-        description: error.message,
+        title: 'DELETE_ERROR',
+        description: 'Failed to delete the broker connection. Please try again later.',
         type: 'error',
+        duration: 5000
       });
     }
   };
@@ -352,15 +412,17 @@ export default function BrokerAuthContent() {
       fetchSavedBrokers();
       
       showNotification({
-        title: 'Broker Credentials Saved',
-        description: 'Toggle the broker ON from the Saved Brokers list to authenticate and activate.',
+        title: 'BROKER_SAVED',
+        description: 'Broker credentials have been saved successfully. Activate it by toggling the switch.',
         type: 'success',
+        duration: 5000
       });
     } catch (error: any) {
       showNotification({
-        title: 'Connection Failed',
-        description: error.message || 'An unexpected error occurred',
+        title: 'CONNECTION_ERROR',
+        description: error.message || 'Failed to establish broker connection. Please verify your credentials.',
         type: 'error',
+        duration: 5000
       });
     } finally {
       setLoading(false);
@@ -409,21 +471,25 @@ export default function BrokerAuthContent() {
       // If this is a Dhan broker and it's currently active, show a message about toggling
       if (editingBroker.broker_name === 'Dhan' && editingBroker.is_active) {
         showNotification({
-          title: 'Broker Updated Successfully',
-          description: 'You may need to toggle the broker OFF and ON again to re-authenticate with the new credentials.',
-          type: 'success',
+          title: 'BROKER_UPDATED',
+          description: 'Credentials updated. Please toggle the broker OFF and ON to re-authenticate.',
+          type: 'info',
+          duration: 7000
         });
       } else {
         showNotification({
-          title: 'Broker Updated Successfully',
+          title: 'BROKER_UPDATED',
+          description: 'Broker credentials have been updated successfully.',
           type: 'success',
+          duration: 3000
         });
       }
     } catch (error: any) {
       showNotification({
-        title: 'Update Failed',
-        description: error.message || 'An unexpected error occurred',
+        title: 'UPDATE_ERROR',
+        description: error.message || 'Failed to update broker credentials. Please try again.',
         type: 'error',
+        duration: 5000
       });
     } finally {
       setLoading(false);

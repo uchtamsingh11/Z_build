@@ -151,24 +151,24 @@ describe('Dashboard Page', () => {
     // Instead of using getByText, we'll look for the market card titles using more specific criteria
     const headings = screen.getAllByRole('heading', { level: 3 })
     
-    // Check for S&P 500 in the headings
-    expect(headings.some(h => h.textContent === 'S&P 500')).toBeTruthy()
+    // Check for NIFTY in the headings
+    expect(headings.some(h => h.textContent === 'NIFTY')).toBeTruthy()
     
-    // Check for NASDAQ in the headings
-    expect(headings.some(h => h.textContent === 'NASDAQ')).toBeTruthy()
+    // Check for BANKNIFTY in the headings
+    expect(headings.some(h => h.textContent === 'BANKNIFTY')).toBeTruthy()
     
     // Check for Bitcoin in the headings 
     expect(headings.some(h => h.textContent === 'Bitcoin')).toBeTruthy()
     
-    // Check for Ethereum in the headings
-    expect(headings.some(h => h.textContent === 'Ethereum')).toBeTruthy()
+    // Check for XAUUSD in the headings
+    expect(headings.some(h => h.textContent === 'XAUUSD')).toBeTruthy()
   })
   
   it('displays portfolio value information', async () => {
     render(await DashboardPage())
     
     expect(screen.getByText('TOTAL_VALUE')).toBeInTheDocument()
-    expect(screen.getByText('$125,432.00')).toBeInTheDocument()
-    expect(screen.getByText('+5.4% (24h)')).toBeInTheDocument()
+    expect(screen.getByText('$0.00')).toBeInTheDocument()
+    expect(screen.getByText('0.0% (24h)')).toBeInTheDocument()
   })
 }) 

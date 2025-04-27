@@ -3,8 +3,6 @@
 import * as React from "react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import {
   Tooltip,
   TooltipContent,
@@ -31,21 +29,6 @@ export default function Footer() {
               <TerminalIcon className="w-6 h-6 mr-2 text-white" />
               <h2 className="text-3xl font-bold tracking-tight font-mono uppercase">ALGOZ</h2>
             </div>
-            <form className="relative">
-              <Input
-                type="email"
-                placeholder="ENTER_YOUR_EMAIL"
-                className="pr-12 border-zinc-700 bg-zinc-900 backdrop-blur-sm font-mono text-sm"
-              />
-              <Button
-                type="submit"
-                size="icon"
-                className="absolute right-1 top-1 h-8 w-8 rounded-full bg-zinc-800 hover:bg-zinc-700 text-white transition-transform hover:scale-105"
-              >
-                <Send className="h-4 w-4" />
-                <span className="sr-only">Subscribe</span>
-              </Button>
-            </form>
             <div className="absolute -right-4 top-0 h-24 w-24 rounded-full bg-blue-900/10 blur-2xl" />
           </div>
           <div>

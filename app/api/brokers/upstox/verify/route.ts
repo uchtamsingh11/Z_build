@@ -1,6 +1,12 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 
+/**
+ * This endpoint is deprecated and maintained for backward compatibility only.
+ * The Upstox integration now uses OAuth 2.0 for authentication.
+ * 
+ * This endpoint will redirect old integrations to use the new OAuth flow.
+ */
 export async function POST(request: Request) {
   try {
     const supabase = await createClient();

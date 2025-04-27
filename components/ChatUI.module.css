@@ -1,0 +1,97 @@
+.chatContainer {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+}
+
+.chatContainer::-webkit-scrollbar {
+  width: 6px;
+}
+
+.chatContainer::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.chatContainer::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.2);
+  border-radius: 10px;
+}
+
+.messageIn {
+  animation: slideInLeft 0.3s ease forwards;
+}
+
+.messageOut {
+  animation: slideInRight 0.3s ease forwards;
+}
+
+.fadeIn {
+  animation: fadeIn 0.3s ease forwards;
+}
+
+.pulseAnimation {
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes slideInLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes pulse {
+  0% {
+    opacity: 0.4;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.4;
+  }
+}
+
+.gradient {
+  background: linear-gradient(to right, #3b82f6, #8b5cf6, #ec4899);
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-size: 200% auto;
+  animation: gradientText 4s ease infinite;
+}
+
+@keyframes gradientText {
+  0% {
+    background-position: 0% center;
+  }
+  50% {
+    background-position: 100% center;
+  }
+  100% {
+    background-position: 0% center;
+  }
+} 

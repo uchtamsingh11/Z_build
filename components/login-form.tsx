@@ -38,10 +38,10 @@ export function LoginForm({ className, ...props }: React.ComponentPropsWithoutRe
       
       // Show success notification
       showNotification({
-        title: 'Login successful',
-        description: 'Redirecting to dashboard...',
+        title: 'ACCESS_GRANTED',
+        description: 'Authentication successful. Welcome back to the platform.',
         type: 'success',
-        duration: 1500
+        duration: 3000
       })
       
       // Wait a moment before redirecting
@@ -55,15 +55,24 @@ export function LoginForm({ className, ...props }: React.ComponentPropsWithoutRe
       if (errorMessage.toLowerCase().includes('invalid') || 
           errorMessage.toLowerCase().includes('credentials')) {
         showNotification({
-          title: 'Authentication failed',
-          description: 'Email or password does not match. Try again or sign up for a new account.',
-          type: 'error'
+          title: 'ACCESS_DENIED',
+          description: 'The provided credentials do not match our records. Please check your email and password.',
+          type: 'error',
+          duration: 5000
+        })
+      } else if (errorMessage.toLowerCase().includes('too many requests')) {
+        showNotification({
+          title: 'RATE_LIMIT_EXCEEDED',
+          description: 'Too many login attempts. Please wait a moment before trying again.',
+          type: 'warning',
+          duration: 7000
         })
       } else {
         showNotification({
-          title: 'Error',
-          description: errorMessage,
-          type: 'error'
+          title: 'SYSTEM_ERROR',
+          description: 'An unexpected error occurred during authentication. Please try again later.',
+          type: 'error',
+          duration: 5000
         })
       }
     } finally {

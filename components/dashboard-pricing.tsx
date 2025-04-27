@@ -7,6 +7,7 @@ import { AlertCircle, BadgeCheck, Clock, Coins, CreditCard } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import TransactionHistoryModal from './transaction-history-modal'
 import { createBrowserClient } from '@supabase/ssr'
+import Link from 'next/link'
 
 export default function DashboardPricing() {
     const [showHistory, setShowHistory] = useState(false);
@@ -130,8 +131,9 @@ export default function DashboardPricing() {
                         <Button 
                             className="w-full h-12 bg-zinc-800 hover:bg-zinc-700 text-white border-zinc-700 mt-4"
                             onClick={() => handlePurchase(1000)}
+                            asChild
                         >
-                            BUY_NOW
+                            <Link href="/auth">BUY_NOW</Link>
                         </Button>
                     </CardFooter>
                 </Card>
@@ -169,8 +171,9 @@ export default function DashboardPricing() {
                         <Button 
                             className="w-full h-12 bg-zinc-800 hover:bg-zinc-700 text-white border-zinc-700 mt-4"
                             onClick={() => handlePurchase(2500)}
+                            asChild
                         >
-                            BUY_NOW
+                            <Link href="/auth">BUY_NOW</Link>
                         </Button>
                     </CardFooter>
                 </Card>
@@ -212,8 +215,9 @@ export default function DashboardPricing() {
                         <Button 
                             className="w-full h-12 bg-zinc-800 hover:bg-zinc-700 text-white border-zinc-700 mt-4"
                             onClick={() => handlePurchase(customAmount)}
+                            asChild
                         >
-                            BUY_NOW
+                            <Link href="/auth">BUY_NOW</Link>
                         </Button>
                     </CardFooter>
                 </Card>

@@ -16,43 +16,43 @@ export default function Features() {
                         <div className="w-8 h-8 flex items-center justify-center bg-zinc-950 border border-zinc-900 mr-3">
                             <Settings className="w-4 h-4 text-white" />
                         </div>
-                        <h2 className="text-4xl font-semibold lg:text-5xl text-white font-mono uppercase tracking-wider">ADVANCED_FEATURES</h2>
+                        <h2 className="text-4xl font-semibold lg:text-5xl text-white font-mono uppercase tracking-wider break-words text-wrap">ADVANCED_FEATURES</h2>
                     </div>
-                    <p className="mt-4 text-zinc-400 font-mono">ALGORITHMIC_TRADING_SOLUTIONS_FOR_MODERN_TRADERS</p>
+                    <p className="mt-4 text-zinc-400 font-mono break-words text-wrap">ALGORITHMIC_TRADING_SOLUTIONS_FOR_MODERN_TRADERS</p>
                 </div>
                 
                 <Card className="mx-auto mt-8 grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x overflow-hidden shadow-zinc-900/20 text-center md:mt-16 bg-black border-zinc-800">
-                    <div className="group shadow-zinc-900/10 hover:bg-zinc-900/50 transition-colors duration-300">
+                    <div className="group shadow-zinc-900/10 hover:bg-zinc-900/50 transition-colors duration-300 p-2 sm:p-4">
                         <CardHeader className="pb-3">
                             <CardDecorator>
                                 <LineChart className="size-6 text-white" aria-hidden />
                             </CardDecorator>
 
-                            <h3 className="mt-6 font-medium text-white font-mono uppercase">TRADINGVIEW</h3>
+                            <h3 className="mt-6 font-medium text-white font-mono uppercase break-words text-wrap">TRADINGVIEW</h3>
                         </CardHeader>
                         <CardContent>
                         </CardContent>
                     </div>
 
-                    <div className="group shadow-zinc-900/10 hover:bg-zinc-900/50 transition-colors duration-300">
+                    <div className="group shadow-zinc-900/10 hover:bg-zinc-900/50 transition-colors duration-300 p-2 sm:p-4">
                         <CardHeader className="pb-3">
                             <CardDecorator>
                                 <BarChart3 className="size-6 text-white" aria-hidden />
                             </CardDecorator>
 
-                            <h3 className="mt-6 font-medium text-white font-mono uppercase">SCALPING_TOOL</h3>
+                            <h3 className="mt-6 font-medium text-white font-mono uppercase break-words text-wrap">SCALPING_TOOL</h3>
                         </CardHeader>
                         <CardContent>
                         </CardContent>
                     </div>
 
-                    <div className="group shadow-zinc-900/10 hover:bg-zinc-900/50 transition-colors duration-300">
+                    <div className="group shadow-zinc-900/10 hover:bg-zinc-900/50 transition-colors duration-300 p-2 sm:p-4">
                         <CardHeader className="pb-3">
                             <CardDecorator>
                                 <UsersRound className="size-6 text-white" aria-hidden />
                             </CardDecorator>
 
-                            <h3 className="mt-6 font-medium text-white font-mono uppercase">COPY_TRADING</h3>
+                            <h3 className="mt-6 font-medium text-white font-mono uppercase break-words text-wrap">COPY_TRADING</h3>
                         </CardHeader>
                         <CardContent>
                         </CardContent>
@@ -60,37 +60,37 @@ export default function Features() {
                 </Card>
                 
                 <Card className="mx-auto mt-8 grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x overflow-hidden shadow-zinc-900/20 text-center bg-black border-zinc-800">
-                    <div className="group shadow-zinc-900/10 hover:bg-zinc-900/50 transition-colors duration-300">
+                    <div className="group shadow-zinc-900/10 hover:bg-zinc-900/50 transition-colors duration-300 p-2 sm:p-4">
                         <CardHeader className="pb-3">
                             <CardDecorator>
                                 <Store className="size-6 text-white" aria-hidden />
                             </CardDecorator>
 
-                            <h3 className="mt-6 font-medium text-white font-mono uppercase">MARKETPLACE</h3>
+                            <h3 className="mt-6 font-medium text-white font-mono uppercase break-words text-wrap">MARKETPLACE</h3>
                         </CardHeader>
                         <CardContent>
                         </CardContent>
                     </div>
 
-                    <div className="group shadow-zinc-900/10 hover:bg-zinc-900/50 transition-colors duration-300">
+                    <div className="group shadow-zinc-900/10 hover:bg-zinc-900/50 transition-colors duration-300 p-2 sm:p-4">
                         <CardHeader className="pb-3">
                             <CardDecorator>
                                 <Code className="size-6 text-white" aria-hidden />
                             </CardDecorator>
 
-                            <h3 className="mt-6 font-medium text-white font-mono uppercase">CUSTOM_DEVELOPER</h3>
+                            <h3 className="mt-6 font-medium text-white font-mono uppercase break-words text-wrap">CUSTOM_DEVELOPER</h3>
                         </CardHeader>
                         <CardContent>
                         </CardContent>
                     </div>
 
-                    <div className="group shadow-zinc-900/10 hover:bg-zinc-900/50 transition-colors duration-300">
+                    <div className="group shadow-zinc-900/10 hover:bg-zinc-900/50 transition-colors duration-300 p-2 sm:p-4">
                         <CardHeader className="pb-3">
                             <CardDecorator>
                                 <Settings className="size-6 text-white" aria-hidden />
                             </CardDecorator>
 
-                            <h3 className="mt-6 font-medium text-white font-mono uppercase">OPTIMIZATION</h3>
+                            <h3 className="mt-6 font-medium text-white font-mono uppercase break-words text-wrap">OPTIMIZATION</h3>
                         </CardHeader>
                         <CardContent>
                         </CardContent>

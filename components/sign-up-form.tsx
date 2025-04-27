@@ -32,9 +32,21 @@ export function SignUpForm({ className, ...props }: React.ComponentPropsWithoutR
 
     if (password !== repeatPassword) {
       showNotification({
-        title: 'Passwords do not match',
-        description: 'Please make sure your passwords match.',
-        type: 'error'
+        title: 'PASSWORD_MISMATCH',
+        description: 'The passwords entered do not match. Please try again.',
+        type: 'warning',
+        duration: 5000
+      })
+      setIsLoading(false)
+      return
+    }
+
+    if (password.length < 8) {
+      showNotification({
+        title: 'PASSWORD_REQUIREMENT',
+        description: 'Password must be at least 8 characters long for security.',
+        type: 'warning',
+        duration: 5000
       })
       setIsLoading(false)
       return
@@ -52,23 +64,34 @@ export function SignUpForm({ className, ...props }: React.ComponentPropsWithoutR
       
       // Show success notification
       showNotification({
-        title: 'Sign up successful',
-        description: 'Check your email to confirm your account.',
+        title: 'ACCOUNT_CREATED',
+        description: 'Verification email sent. Please check your inbox to activate your account.',
         type: 'success',
-        duration: 1500
+        duration: 5000
       })
       
       // Redirect to login page with success parameter after a short delay
       setTimeout(() => {
         router.push('/auth/login?signup=success')
-      }, 1500)
+      }, 2000)
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'An error occurred'
-      showNotification({
-        title: 'Error',
-        description: errorMessage,
-        type: 'error'
-      })
+      
+      if (errorMessage.toLowerCase().includes('email')) {
+        showNotification({
+          title: 'EMAIL_ERROR',
+          description: 'This email may already be in use or is invalid. Please try another email address.',
+          type: 'error',
+          duration: 5000
+        })
+      } else {
+        showNotification({
+          title: 'REGISTRATION_ERROR',
+          description: 'There was a problem creating your account. Please try again later.',
+          type: 'error',
+          duration: 5000
+        })
+      }
     } finally {
       setIsLoading(false)
     }

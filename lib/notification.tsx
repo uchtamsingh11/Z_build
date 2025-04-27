@@ -3,7 +3,8 @@
 import React, { createContext, useContext, useState, useCallback } from 'react';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
-import { X } from 'lucide-react';
+import { X, CheckCircle, AlertCircle, Info, AlertTriangle } from 'lucide-react';
+import { AnimatePresence, motion } from 'framer-motion';
 
 // Types for notification
 type NotificationType = 'success' | 'error' | 'warning' | 'info' | 'default';
@@ -37,9 +38,9 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     
     setNotifications((prev) => [...prev, notification]);
 
-    // Auto dismiss after duration (default: 3 seconds)
+    // Auto dismiss after duration (default: 5 seconds)
     if (props.duration !== 0) {
-      const duration = props.duration || 3000;
+      const duration = props.duration || 5000;
       setTimeout(() => {
         dismissNotification(id);
       }, duration);
@@ -68,38 +69,82 @@ export function useNotification() {
   return context;
 }
 
+// Get icon for notification type
+const getNotificationIcon = (type: NotificationType) => {
+  switch (type) {
+    case 'success':
+      return <CheckCircle className="h-5 w-5 text-emerald-500" />;
+    case 'error':
+      return <AlertCircle className="h-5 w-5 text-red-500" />;
+    case 'warning':
+      return <AlertTriangle className="h-5 w-5 text-amber-500" />;
+    case 'info':
+      return <Info className="h-5 w-5 text-blue-500" />;
+    default:
+      return <Info className="h-5 w-5 text-zinc-400" />;
+  }
+};
+
+// Get background color based on notification type
+const getNotificationBgColor = (type: NotificationType) => {
+  switch (type) {
+    case 'success':
+      return 'bg-emerald-500/10 border-emerald-500/20';
+    case 'error':
+      return 'bg-red-500/10 border-red-500/20';
+    case 'warning':
+      return 'bg-amber-500/10 border-amber-500/20';
+    case 'info':
+      return 'bg-blue-500/10 border-blue-500/20';
+    default:
+      return 'bg-zinc-900 border-zinc-800';
+  }
+};
+
 // Notification container component
 function NotificationContainer() {
   const { notifications, dismissNotification } = useNotification();
 
   return (
-    <div className="fixed top-4 right-4 z-50 flex flex-col gap-2">
-      {notifications.map((notification) => (
-        <Alert
-          key={notification.id}
-          variant={notification.type as any}
-          isNotification={true}
-          layout="row"
-          className="animate-in fade-in slide-in-from-right-5 duration-300"
-          action={
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-6 w-6"
-              onClick={() => dismissNotification(notification.id)}
-            >
-              <X className="h-3 w-3" />
-            </Button>
-          }
-        >
-          <div>
-            <AlertTitle>{notification.title}</AlertTitle>
-            {notification.description && (
-              <AlertDescription>{notification.description}</AlertDescription>
-            )}
-          </div>
-        </Alert>
-      ))}
+    <div className="fixed top-16 right-4 z-[100] flex flex-col gap-3 max-w-md w-full pointer-events-none">
+      <AnimatePresence>
+        {notifications.map((notification) => (
+          <motion.div
+            key={notification.id}
+            initial={{ opacity: 0, y: -20, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, x: 100, transition: { duration: 0.2 } }}
+            transition={{
+              type: "spring",
+              stiffness: 500,
+              damping: 30
+            }}
+            className="pointer-events-auto"
+          >
+            <div className={`rounded-lg border px-4 py-3 shadow-lg shadow-black/10 ${getNotificationBgColor(notification.type)} backdrop-blur-sm`}>
+              <div className="flex items-start gap-3">
+                <div className="flex-shrink-0 mt-0.5">
+                  {getNotificationIcon(notification.type)}
+                </div>
+                <div className="flex-grow">
+                  <h4 className="text-sm font-medium font-mono tracking-wide text-white">{notification.title}</h4>
+                  {notification.description && (
+                    <p className="mt-1 text-xs text-zinc-300">{notification.description}</p>
+                  )}
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6 flex-shrink-0 -mr-1 -mt-1 text-zinc-400 hover:text-white hover:bg-white/10"
+                  onClick={() => dismissNotification(notification.id)}
+                >
+                  <X className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            </div>
+          </motion.div>
+        ))}
+      </AnimatePresence>
     </div>
   );
 }
@@ -109,7 +154,7 @@ export function showToast(
   title: string,
   type: NotificationType = 'default',
   description?: string,
-  duration: number = 3000
+  duration: number = 5000
 ) {
   // This will be used inside components to show notifications
   const context = useContext(NotificationContext);
@@ -128,22 +173,22 @@ export function setNotificationContext(context: NotificationContextProps) {
 }
 
 export const toast = {
-  success: (title: string, description?: string, duration: number = 3000) => {
+  success: (title: string, description?: string, duration: number = 5000) => {
     if (notificationContextValue) {
       notificationContextValue.showNotification({ title, description, type: 'success', duration });
     }
   },
-  error: (title: string, description?: string, duration: number = 3000) => {
+  error: (title: string, description?: string, duration: number = 5000) => {
     if (notificationContextValue) {
       notificationContextValue.showNotification({ title, description, type: 'error', duration });
     }
   },
-  warning: (title: string, description?: string, duration: number = 3000) => {
+  warning: (title: string, description?: string, duration: number = 5000) => {
     if (notificationContextValue) {
       notificationContextValue.showNotification({ title, description, type: 'warning', duration });
     }
   },
-  info: (title: string, description?: string, duration: number = 3000) => {
+  info: (title: string, description?: string, duration: number = 5000) => {
     if (notificationContextValue) {
       notificationContextValue.showNotification({ title, description, type: 'info', duration });
     }

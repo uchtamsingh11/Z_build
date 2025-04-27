@@ -17,12 +17,10 @@ import {
 } from "@/components/ui/sidebar"
 import { createClient } from '@/lib/supabase/client'
 import { CoinBalanceDisplay } from "@/components/coin-balance-display"
-import { Bot, Mic, ArrowRight, Paperclip, UserCircle, Loader2 } from "lucide-react"
-import { Input } from "@/components/ui/input"
-import { Button } from "@/components/ui/button"
-import { Dropzone, DropzoneEmptyState } from "@/components/ui/dropzone"
 import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
+import { ArrowDown, Paperclip, Send, Download, Mic, Settings, X } from "lucide-react"
+import styles from '@/components/ChatUI.module.css'
 
 // Message type definition
 type Message = {
@@ -33,13 +31,15 @@ type Message = {
 }
 
 export default function AssistantPage() {
-  const [userMessage, setUserMessage] = useState('')
-  const [isListening, setIsListening] = useState(false)
-  const [files, setFiles] = useState<File[]>([])
+  const [userMessage, setUserMessage] = useState("")
   const [messages, setMessages] = useState<Message[]>([])
+  const [files, setFiles] = useState<File[]>([])
   const [isLoading, setIsLoading] = useState(false)
+  const [userName, setUserName] = useState("User")
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const messagesContainerRef = useRef<HTMLDivElement>(null)
   const router = useRouter()
   
   // Client-side auth check
@@ -56,9 +56,7 @@ export default function AssistantPage() {
     checkAuth()
   }, [router])
 
-  // User's name (client-side)
-  const [userName, setUserName] = useState('User')
-  
+  // Fetch user's name
   useEffect(() => {
     const fetchUserData = async () => {
       const supabase = createClient()
@@ -78,185 +76,56 @@ export default function AssistantPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
-  // Initial welcome message
-  useEffect(() => {
-    if (messages.length === 0) {
-      setMessages([
-        {
-          role: "assistant",
-          content: "Hi there! I'm your assistant powered by Gemini. How can I help you today?",
-          timestamp: new Date()
-        }
-      ])
-    }
-  }, [messages])
-
-  // Function to call Gemini API
-  const callGeminiAPI = async (prompt: string, conversationHistory: Message[]) => {
-    try {
-      const apiKey = "AIzaSyDPfMxPkHsHre9HJzgfLqC_fPBUJB4UXJc"
-      const apiUrl = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent"
-      
-      // Format the conversation history for the API
-      const formattedHistory = conversationHistory.map(msg => ({
-        role: msg.role === "user" ? "user" : "model",
-        parts: [{ text: msg.content }]
-      }))
-      
-      // Add the current prompt
-      const requestBody = {
-        contents: [
-          ...formattedHistory,
-          {
-            role: "user",
-            parts: [{ text: prompt }]
-          }
-        ],
-        generationConfig: {
-          temperature: 0.7,
-          topK: 40,
-          topP: 0.95,
-          maxOutputTokens: 1024,
-        }
-      }
-      
-      console.log("Sending request to Gemini API:", JSON.stringify(requestBody, null, 2))
-      
-      const response = await fetch(`${apiUrl}?key=${apiKey}`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(requestBody),
-      })
-      
-      if (!response.ok) {
-        const errorText = await response.text()
-        console.error("API Response Error:", response.status, errorText)
-        return `Sorry, I encountered an error (${response.status}). Please try again later.`
-      }
-      
-      const data = await response.json()
-      console.log("API Response:", JSON.stringify(data, null, 2))
-      
-      if (data.candidates && data.candidates[0]?.content?.parts[0]?.text) {
-        return data.candidates[0].content.parts[0].text
-      } else if (data.error) {
-        const errorMessage = typeof data.error === 'object' 
-          ? JSON.stringify(data.error) 
-          : String(data.error)
-        console.error("API Error:", errorMessage)
-        return "Sorry, I encountered an error. Please try again later."
-      } else {
-        console.error("Unexpected API response structure")
-        return "Sorry, I couldn't process that request. Please try again."
-      }
-    } catch (error) {
-      console.error("Error calling Gemini API:", error)
-      return "Sorry, something went wrong. Please try again later."
-    }
-  }
-
-  // Handle text input submission
-  const handleSendMessage = async () => {
-    if (userMessage.trim()) {
-      // Add user message to chat
-      const userMsg: Message = {
-        role: "user",
-        content: userMessage,
-        timestamp: new Date(),
-        files: files.length > 0 ? [...files] : undefined
-      }
-      
-      setMessages(prev => [...prev, userMsg])
-      setUserMessage('')
-      setFiles([])
-      setIsLoading(true)
-      
-      // Get response from Gemini
-      const assistantResponse = await callGeminiAPI(
-        userMessage, 
-        // Only send last 10 messages to avoid token limits
-        messages.slice(-10)
-      )
-      
-      // Add assistant response to chat
-      const assistantMsg: Message = {
-        role: "assistant",
-        content: assistantResponse,
-        timestamp: new Date()
-      }
-      
-      setMessages(prev => [...prev, assistantMsg])
-      setIsLoading(false)
-    }
-  }
-
-  // Handle file uploads
-  const handleFileUpload = (acceptedFiles: File[]) => {
-    // Filter to only accept images and PDFs
-    const filteredFiles = acceptedFiles.filter(
-      file => file.type.startsWith('image/') || file.type === 'application/pdf'
-    )
+  // Basic example response function (replace with actual API call)
+  const getAssistantResponse = async (message: string): Promise<string> => {
+    // Simulate API delay
+    await new Promise(resolve => setTimeout(resolve, 1500))
     
-    if (filteredFiles.length > 0) {
-      setFiles(filteredFiles)
-    }
+    const responses = [
+      `I understand what you're asking about. Let me explain "${message}"...`,
+      `That's an interesting question about "${message}". Here's what I know...`,
+      `Thanks for asking about "${message}". Here's some information that might help...`,
+      `I've analyzed your question about "${message}" and here's what I found...`,
+      `Let me provide some insights on "${message}"...`
+    ]
+    
+    return responses[Math.floor(Math.random() * responses.length)]
   }
 
-  // Handle speech-to-text
-  const handleSpeechToText = () => {
-    // Check if browser supports SpeechRecognition
-    if (typeof window !== 'undefined') {
-      // Using window.any to accommodate the browsers' different implementations
-      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+  // Handle message submission
+  const handleSendMessage = async () => {
+    if (!userMessage.trim()) return
       
-      if (SpeechRecognition) {
-        const recognition = new SpeechRecognition()
-        
-        recognition.lang = 'en-US'
-        recognition.interimResults = false
-        
-        if (!isListening) {
-          // Start listening
-          recognition.start()
-          setIsListening(true)
-          
-          recognition.onresult = (event: any) => {
-            const transcript = event.results[0][0].transcript
-            setUserMessage(prev => prev + ' ' + transcript)
-            setIsListening(false)
-          }
-          
-          recognition.onerror = (event: any) => {
-            console.error('Speech recognition error', event.error)
-            setIsListening(false)
-            
-            // Handle specific error types
-            if (event.error === 'network') {
-              alert("Network error occurred. Please check your internet connection and try again.")
-            } else if (event.error === 'not-allowed') {
-              alert("Microphone access was denied. Please allow microphone access to use this feature.")
-            } else if (event.error === 'aborted') {
-              // User or system aborted, no need to show error
-              console.log("Speech recognition aborted")
-            } else {
-              alert("Failed to recognize speech. Please try again.")
-            }
-          }
-          
-          recognition.onend = () => {
-            setIsListening(false)
-          }
-        } else {
-          // Stop listening
-          recognition.stop()
-          setIsListening(false)
-        }
-      } else {
-        alert("Speech recognition is not supported in your browser")
-      }
+    // Add user message to chat
+    const userMsg: Message = {
+      role: "user",
+      content: userMessage,
+      timestamp: new Date(),
+      files: files.length > 0 ? [...files] : undefined
     }
+    
+    setMessages(prev => [...prev, userMsg])
+    setUserMessage("")
+    setFiles([])
+    setIsLoading(true)
+    
+    // Get assistant response
+    const responseText = await getAssistantResponse(userMessage)
+    
+    // Add assistant response to chat
+    const assistantMsg: Message = {
+      role: "assistant",
+      content: responseText,
+      timestamp: new Date()
+    }
+    
+    setMessages(prev => [...prev, assistantMsg])
+    setIsLoading(false)
+  }
+
+  // Handle file selection
+  const handleFileUpload = (acceptedFiles: FileList) => {
+    setFiles(Array.from(acceptedFiles))
   }
 
   // Format timestamp
@@ -264,176 +133,237 @@ export default function AssistantPage() {
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
   }
 
+  // Download chat as text file
+  const downloadChat = () => {
+    if (messages.length === 0) return
+    
+    let content = ""
+    messages.forEach(msg => {
+      const sender = msg.role === "user" ? userName : "Assistant"
+      const time = formatTime(msg.timestamp)
+      content += `[${time}] ${sender}: ${msg.content}\n\n`
+    })
+    
+    const blob = new Blob([content], { type: "text/plain" })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = `chat-${new Date().toISOString().split('T')[0]}.txt`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }
+
+  // Scroll to bottom button
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }
+
   return (
     <SidebarProvider>
       <div className="grid min-h-screen w-full grid-cols-[auto_1fr] bg-black text-white font-mono">
         <AppSidebar />
-        <SidebarInset>
-          {/* Header with breadcrumb and coin display */}
-          <header className="flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-[[data-collapsible=icon]]/sidebar-wrapper:h-12 border-b border-zinc-900">
-            <div className="flex items-center gap-2 px-4">
-              <SidebarTrigger className="-ml-1" />
-              <Separator orientation="vertical" className="mr-2 h-4" />
-              <Breadcrumb>
-                <BreadcrumbList>
-                  <BreadcrumbItem className="hidden md:block">
-                    <BreadcrumbLink href="/dashboard">
-                      Dashboard
-                    </BreadcrumbLink>
-                  </BreadcrumbItem>
-                  <BreadcrumbSeparator className="hidden md:block" />
-                  <BreadcrumbItem>
-                    <BreadcrumbPage>Assistant</BreadcrumbPage>
-                  </BreadcrumbItem>
-                </BreadcrumbList>
-              </Breadcrumb>
-            </div>
-            
-            <div className="ml-auto mr-4">
-              <CoinBalanceDisplay />
-            </div>
-          </header>
-          
-          {/* Assistant content */}
-          <div className="flex-1 flex flex-col bg-black min-h-screen relative">
-            {/* Grid background overlay */}
-            <div className="absolute inset-0 bg-[linear-gradient(to_right,#111_1px,transparent_1px),linear-gradient(to_bottom,#111_1px,transparent_1px)] bg-[size:32px_32px] opacity-20"></div>
-            
-            <div className="relative z-10 w-full max-w-4xl mx-auto flex flex-col h-full">
-              <h1 className="text-2xl font-bold my-6 px-4 text-white">Assistant</h1>
-              
-              {/* Chat messages area */}
-              <div className="flex-1 overflow-y-auto px-4 pb-6">
-                <div className="space-y-6">
-                  {messages.map((message, index) => (
-                    <div 
-                      key={index} 
-                      className={`flex ${message.role === "assistant" ? "justify-start" : "justify-end"}`}
-                    >
-                      <div 
-                        className={`
-                          flex max-w-[80%] rounded-lg p-4
-                          ${message.role === "assistant" 
-                            ? "bg-zinc-800 text-white" 
-                            : "bg-blue-600 text-white"
-                          }
-                        `}
-                      >
-                        <div className="flex-shrink-0 mr-4">
-                          {message.role === "assistant" ? (
-                            <Bot className="h-8 w-8 text-blue-400" />
-                          ) : (
-                            <UserCircle className="h-8 w-8 text-white" />
-                          )}
-                        </div>
-                        <div className="flex-1">
-                          <div className="flex items-center mb-1">
-                            <span className="font-medium">
-                              {message.role === "assistant" ? "Assistant" : userName}
-                            </span>
-                            <span className="ml-2 text-xs opacity-70">
-                              {formatTime(message.timestamp)}
-                            </span>
-                          </div>
-                          <div className="whitespace-pre-wrap">
-                            {message.content}
-                          </div>
-                          {message.files && message.files.length > 0 && (
-                            <div className="mt-2">
-                              <p className="text-sm font-medium">Attached files:</p>
-                              <ul className="text-sm opacity-80">
-                                {message.files.map((file, i) => (
-                                  <li key={i}>{file.name}</li>
-                                ))}
-                              </ul>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                  
-                  {/* Loading indicator */}
-                  {isLoading && (
-                    <div className="flex justify-start">
-                      <div className="flex bg-zinc-800 text-white max-w-[80%] rounded-lg p-4">
-                        <div className="flex-shrink-0 mr-4">
-                          <Bot className="h-8 w-8 text-blue-400" />
-                        </div>
-                        <div className="flex items-center">
-                          <Loader2 className="h-5 w-5 animate-spin text-blue-400 mr-2" />
-                          <span>Thinking...</span>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                  
-                  {/* For auto-scrolling */}
-                  <div ref={messagesEndRef} />
-                </div>
+        
+        {/* Main content area - with fixed header and footer */}
+        <div className="h-screen flex flex-col relative">
+          {/* Fixed header area */}
+          <div className="sticky top-0 z-30">
+            {/* Main header with breadcrumb and coin display */}
+            <header className="flex h-16 shrink-0 items-center gap-2 border-b border-zinc-900 bg-black">
+              <div className="flex items-center gap-2 px-4">
+                <SidebarTrigger className="-ml-1" />
+                <Separator orientation="vertical" className="mr-2 h-4" />
+                <Breadcrumb>
+                  <BreadcrumbList>
+                    <BreadcrumbItem className="hidden md:block">
+                      <BreadcrumbLink href="/dashboard">
+                        Dashboard
+                      </BreadcrumbLink>
+                    </BreadcrumbItem>
+                    <BreadcrumbSeparator className="hidden md:block" />
+                    <BreadcrumbItem>
+                      <BreadcrumbPage>Assistant</BreadcrumbPage>
+                    </BreadcrumbItem>
+                  </BreadcrumbList>
+                </Breadcrumb>
               </div>
               
-              {/* Files preview area */}
-              {files.length > 0 && (
-                <div className="px-4 py-3 bg-zinc-900 border-t border-zinc-800">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-medium">Files to upload ({files.length})</span>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setFiles([])}
-                      className="text-xs h-7"
-                    >
-                      Clear all
-                    </Button>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {files.map((file, index) => (
-                      <div key={index} className="flex items-center bg-zinc-800 rounded-md px-2 py-1 text-sm">
-                        <span className="truncate max-w-[150px]">{file.name}</span>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-5 w-5 ml-1"
-                          onClick={() => setFiles(files.filter((_, i) => i !== index))}
-                        >
-                          <span className="sr-only">Remove</span>
-                          <span aria-hidden="true">&times;</span>
-                        </Button>
+              <div className="ml-auto mr-4">
+                <CoinBalanceDisplay />
+              </div>
+            </header>
+            
+            {/* Welcome header - only show when no messages */}
+            {messages.length === 0 && (
+              <div className="h-16 flex items-center justify-center border-b border-zinc-900/50 bg-black/95">
+                <h1 className={`text-xl font-medium ${styles.gradient}`}>
+                  Hello, {userName}
+                </h1>
+              </div>
+            )}
+          </div>
+          
+          {/* Scrollable chat content area */}
+          <div className="flex-1 overflow-y-auto relative" ref={messagesContainerRef}>
+            {/* Grid pattern background */}
+            <div className="absolute inset-0 bg-[linear-gradient(to_right,#111_1px,transparent_1px),linear-gradient(to_bottom,#111_1px,transparent_1px)] bg-[size:20px_20px] opacity-30 pointer-events-none"></div>
+            
+            {/* Empty state when no messages */}
+            {messages.length === 0 && (
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className={`text-center px-4 ${styles.fadeIn}`}>
+                  <p className="text-zinc-400">Start a conversation by typing a message below.</p>
+                </div>
+              </div>
+            )}
+            
+            {/* Messages */}
+            <div className="max-w-3xl mx-auto px-4 py-8 pb-32 space-y-6">
+              {messages.map((message, index) => (
+                <div 
+                  key={index} 
+                  className={`flex ${message.role === "assistant" ? "justify-start" : "justify-end"}`}
+                >
+                  <div 
+                    className={`
+                      max-w-[85%] rounded-3xl px-4 py-3 shadow-lg
+                      ${message.role === "assistant" 
+                        ? `bg-zinc-800/90 text-white ${styles.messageIn}`
+                        : `bg-zinc-900 text-white ${styles.messageOut}`
+                      }
+                    `}
+                    style={{ animationDelay: `${index * 0.1}s` }}
+                  >
+                    <div className="flex items-center mb-1.5">
+                      <span className="font-medium">
+                        {message.role === "assistant" ? "Assistant" : userName}
+                      </span>
+                      <span className="ml-2 text-xs opacity-70">
+                        {formatTime(message.timestamp)}
+                      </span>
+                    </div>
+                    <div className="whitespace-pre-wrap">
+                      {message.content}
+                    </div>
+                    {message.files && message.files.length > 0 && (
+                      <div className="mt-2 border-t border-zinc-700/50 pt-2">
+                        <p className="text-xs font-medium">Attached files:</p>
+                        <ul className="text-xs opacity-80">
+                          {message.files.map((file, i) => (
+                            <li key={i} className="truncate">{file.name}</li>
+                          ))}
+                        </ul>
                       </div>
-                    ))}
+                    )}
+                  </div>
+                </div>
+              ))}
+              
+              {/* Loading indicator */}
+              {isLoading && (
+                <div className="flex justify-start">
+                  <div className={`bg-zinc-800/90 text-white max-w-[85%] rounded-3xl px-4 py-3 shadow-lg ${styles.messageIn}`}>
+                    <div className="flex items-center space-x-2">
+                      <div className="flex space-x-1.5">
+                        <div className={`w-2 h-2 rounded-full bg-blue-400 ${styles.pulseAnimation}`} style={{ animationDelay: "0s" }} />
+                        <div className={`w-2 h-2 rounded-full bg-indigo-400 ${styles.pulseAnimation}`} style={{ animationDelay: "0.3s" }} />
+                        <div className={`w-2 h-2 rounded-full bg-pink-400 ${styles.pulseAnimation}`} style={{ animationDelay: "0.6s" }} />
+                      </div>
+                    </div>
                   </div>
                 </div>
               )}
               
-              {/* Input area */}
-              <div className="p-4 border-t border-zinc-900">
-                <div className="relative flex items-center w-full rounded-lg border border-zinc-700 bg-zinc-900 px-4 py-2 shadow-md">
+              {/* Auto-scroll anchor */}
+              <div ref={messagesEndRef} />
+            </div>
+            
+            {/* Scroll to bottom button */}
+            {messages.length > 3 && (
+              <button
+                onClick={scrollToBottom}
+                className="fixed bottom-24 right-6 bg-zinc-800/80 backdrop-blur-sm text-white p-2 rounded-full shadow-lg hover:bg-zinc-700 transition-all z-20"
+                aria-label="Scroll to bottom"
+              >
+                <ArrowDown className="h-5 w-5" />
+              </button>
+            )}
+          </div>
+          
+          {/* Fixed footer area */}
+          <div className="sticky bottom-0 left-0 right-0 z-30">
+            {/* Files preview area */}
+            {files.length > 0 && (
+              <div className={`bg-zinc-900/95 backdrop-blur-sm border-t border-zinc-800/50 px-4 py-3 ${styles.fadeIn}`}>
+                <div className="max-w-3xl mx-auto">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-medium">Files to upload ({files.length})</span>
+                    <button 
+                      className="text-xs text-zinc-400 hover:text-white"
+                      onClick={() => setFiles([])}
+                    >
+                      Clear all
+                    </button>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {files.map((file, index) => (
+                      <div 
+                        key={index} 
+                        className="flex items-center bg-zinc-800/80 rounded-full px-3 py-1.5 text-sm"
+                        style={{ animation: `${styles.fadeIn} 0.3s ease forwards`, animationDelay: `${index * 0.05}s` }}
+                      >
+                        <span className="truncate max-w-[150px]">{file.name}</span>
+                        <button
+                          className="ml-2 text-zinc-400 hover:text-white"
+                          onClick={() => setFiles(files.filter((_, i) => i !== index))}
+                        >
+                          <span className="sr-only">Remove</span>
+                          <span aria-hidden="true">×</span>
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+            
+            {/* Input area */}
+            <div className="bg-black/95 backdrop-blur-sm border-t border-zinc-800/50 p-4">
+              <div className="max-w-3xl mx-auto flex items-center">
+                {/* Settings button on the left side */}
+                <button 
+                  className="p-2 mr-2 rounded-full text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors"
+                  onClick={() => setIsSettingsOpen(true)}
+                  aria-label="Settings"
+                >
+                  <Settings className="h-5 w-5" />
+                </button>
+                
+                <div className="relative flex items-center w-full rounded-full border border-zinc-700/80 bg-zinc-900/80 px-4 py-2 shadow-lg">
                   <input
                     type="file"
                     ref={fileInputRef}
                     style={{ display: 'none' }}
-                    accept="image/*,application/pdf"
+                    accept="*/*"
                     onChange={(e) => {
-                      if (e.target.files && e.target.files.length > 0) {
-                        handleFileUpload(Array.from(e.target.files))
+                      if (e.target.files) {
+                        handleFileUpload(e.target.files)
                       }
                     }}
                     multiple
                   />
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    className="rounded-full flex-shrink-0"
+                  <button 
+                    className="p-1.5 rounded-full text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors"
                     onClick={() => fileInputRef.current?.click()}
                     aria-label="Upload file"
                   >
-                    <Paperclip className="h-5 w-5 text-zinc-400" />
-                  </Button>
+                    <Paperclip className="h-5 w-5" />
+                  </button>
                   
-                  <Input 
+                  <input 
                     type="text" 
-                    placeholder="Ask Assistant"
+                    placeholder="Type your message..."
                     value={userMessage}
                     onChange={(e) => setUserMessage(e.target.value)}
                     onKeyDown={(e) => {
@@ -442,36 +372,71 @@ export default function AssistantPage() {
                         handleSendMessage();
                       }
                     }}
-                    className="flex-1 border-0 bg-transparent px-3 py-1.5 text-white focus-visible:ring-0 focus-visible:ring-offset-0"
+                    className="flex-1 border-0 bg-transparent px-3 py-1.5 text-white focus:outline-none"
                     disabled={isLoading}
                   />
                   
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    className={`rounded-full flex-shrink-0 ${!userMessage.trim() || isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  <button 
+                    className={`
+                      p-1.5 rounded-full ml-1 transition-all transform hover:scale-105 active:scale-95
+                      ${userMessage.trim() && !isLoading 
+                        ? "bg-gradient-to-r from-blue-500 to-indigo-500 text-white shadow-md" 
+                        : "text-zinc-600 bg-zinc-800 cursor-not-allowed"
+                      }
+                    `}
                     onClick={handleSendMessage}
                     disabled={!userMessage.trim() || isLoading}
                     aria-label="Send message"
                   >
-                    <ArrowRight className={`h-5 w-5 ${!userMessage.trim() || isLoading ? 'text-zinc-600' : 'text-zinc-400'}`} />
-                  </Button>
+                    <Send className="h-5 w-5" />
+                  </button>
                   
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
-                    className={`rounded-full flex-shrink-0 ${isListening ? 'bg-red-500/20' : ''}`}
-                    onClick={handleSpeechToText}
-                    disabled={isLoading}
+                  {/* Mic button inside input area */}
+                  <button 
+                    className="p-1.5 rounded-full ml-1 text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors"
                     aria-label="Voice input"
                   >
-                    <Mic className={`h-5 w-5 ${isListening ? 'text-red-500' : 'text-zinc-400'}`} />
-                  </Button>
+                    <Mic className="h-5 w-5" />
+                  </button>
+                </div>
+                
+                {/* Download button remains outside */}
+                <div className="flex ml-2">
+                  <button 
+                    className="p-2 rounded-full text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors"
+                    onClick={downloadChat}
+                    aria-label="Download chat"
+                    disabled={messages.length === 0}
+                  >
+                    <Download className="h-5 w-5" />
+                  </button>
                 </div>
               </div>
             </div>
           </div>
-        </SidebarInset>
+          
+          {/* Settings popup */}
+          {isSettingsOpen && (
+            <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
+              <div className="bg-zinc-900 rounded-lg shadow-xl w-[90%] max-w-md p-5 mx-4">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-xl font-medium">Settings</h2>
+                  <button 
+                    className="p-1.5 rounded-full text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors"
+                    onClick={() => setIsSettingsOpen(false)}
+                    aria-label="Close settings"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
+                <div className="border-t border-zinc-800 pt-4">
+                  {/* Settings content will go here */}
+                  <p className="text-zinc-400">Settings options will be added here.</p>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </SidebarProvider>
   )

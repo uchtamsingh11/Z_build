@@ -47,7 +47,7 @@ export default function Home() {
                             <div className="text-center sm:mx-auto lg:mr-auto lg:mt-0">
                                 <AnimatedGroup variants={transitionVariants}>
                                     <Link
-                                        href="#link"
+                                        href="/auth"
                                         className="hover:bg-zinc-900 group mx-auto flex w-fit items-center gap-4 rounded-full border border-zinc-800 p-1 pl-4 shadow-md shadow-zinc-950/5 transition-colors duration-300">
                                         <span className="text-white text-sm font-mono">ALGORITHMIC_TRADING_INTERFACE</span>
                                         <span className="block h-4 w-0.5 border-l bg-zinc-700"></span>
@@ -78,7 +78,7 @@ export default function Home() {
                                     speedSegment={0.3}
                                     delay={0.5}
                                     as="p"
-                                    className="mx-auto mt-8 max-w-2xl text-balance text-lg text-zinc-400">
+                                    className="mx-auto mt-8 max-w-2xl text-balance text-lg text-zinc-400 break-words text-wrap">
                                     HARNESS THE POWER OF ALGORITHMIC TRADING WITH OUR INTELLIGENT PLATFORM. OPTIMIZE YOUR STRATEGIES, MINIMIZE EMOTIONAL DECISIONS, AND MAXIMIZE YOUR RETURNS.
                                 </TextEffect>
 
@@ -102,7 +102,7 @@ export default function Home() {
                                             asChild
                                             size="lg"
                                             className="rounded-xl px-5 text-base bg-zinc-800 hover:bg-zinc-700 text-white font-mono">
-                                            <Link href="#start-trading">
+                                            <Link href="/auth">
                                                 <span className="text-nowrap uppercase">START_TRADING</span>
                                             </Link>
                                         </Button>
@@ -113,7 +113,7 @@ export default function Home() {
                                         size="lg"
                                         variant="ghost"
                                         className="h-10.5 rounded-xl px-5 text-white border border-zinc-700 hover:bg-zinc-800 font-mono">
-                                        <Link href="#link">
+                                        <Link href="/learn-more">
                                             <span className="text-nowrap uppercase">LEARN_MORE</span>
                                         </Link>
                                     </Button>
@@ -124,19 +124,23 @@ export default function Home() {
                 </section>
                 
                 <LogoCloud />
-                <Features />
+                <div id="features">
+                    <Features />
+                </div>
                 <IntegrationsSection />
                 <Testimonials />
                 
                 {/* Pricing heading */}
-                <div className="mx-auto max-w-6xl px-6 pt-16 pb-8 text-center">
+                <div id="pricing" className="mx-auto max-w-6xl px-6 pt-16 pb-8 text-center">
                     <h2 className="text-4xl font-medium lg:text-5xl text-white font-mono uppercase tracking-wider">PRICING_PLAN</h2>
                     <p className="mt-4 text-zinc-400 font-mono">CHOOSE_THE_PLAN_THAT_BEST_FITS_YOUR_TRADING_NEEDS</p>
                 </div>
                 
                 <DashboardPricing />
             </main>
-            <Footer />
+            <div id="about">
+                <Footer />
+            </div>
         </>
     )
 }

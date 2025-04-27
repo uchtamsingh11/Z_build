@@ -118,17 +118,17 @@ export default async function DashboardPage() {
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                   <MarketCard 
-                    name="S&P 500" 
-                    symbol="SPX" 
-                    price="5,246.03" 
-                    change={0.76} 
+                    name="NIFTY" 
+                    symbol="NIFTY" 
+                    price="24,302.15" 
+                    change={0.83} 
                     icon={<DollarSign className="h-5 w-5" />} 
                   />
                   <MarketCard 
-                    name="NASDAQ" 
-                    symbol="COMP" 
-                    price="16,742.39" 
-                    change={1.02} 
+                    name="BANKNIFTY" 
+                    symbol="BANKNIFTY" 
+                    price="51,437.22" 
+                    change={1.14} 
                     icon={<DollarSign className="h-5 w-5" />} 
                   />
                   <MarketCard 
@@ -139,11 +139,11 @@ export default async function DashboardPage() {
                     icon={<Bitcoin className="h-5 w-5" />} 
                   />
                   <MarketCard 
-                    name="Ethereum" 
-                    symbol="ETH/USD" 
-                    price="3,486.92" 
-                    change={-1.45} 
-                    icon={<Bitcoin className="h-5 w-5" />} 
+                    name="XAUUSD" 
+                    symbol="XAU/USD" 
+                    price="2,328.45" 
+                    change={-0.25} 
+                    icon={<DollarSign className="h-5 w-5" />} 
                   />
                 </div>
               </section>
@@ -162,10 +162,10 @@ export default async function DashboardPage() {
                       <div className="flex justify-between items-center mb-4">
                         <div>
                           <p className="text-sm text-zinc-500 font-mono">TOTAL_VALUE</p>
-                          <p className="text-3xl font-bold">$125,432.00</p>
+                          <p className="text-3xl font-bold">$0.00</p>
                           <p className="text-sm text-zinc-400 flex items-center">
                             <TrendingUp className="h-4 w-4 mr-1" />
-                            +5.4% (24h)
+                            0.0% (24h)
                           </p>
                         </div>
                         {/* Pie chart placeholder */}
@@ -177,22 +177,22 @@ export default async function DashboardPage() {
                         <div>
                           <div className="h-2 w-full bg-zinc-800 rounded-full mb-1"></div>
                           <p className="text-zinc-400">STOCKS</p>
-                          <p className="font-medium">45%</p>
+                          <p className="font-medium">0%</p>
                         </div>
                         <div>
                           <div className="h-2 w-full bg-zinc-700 rounded-full mb-1"></div>
                           <p className="text-zinc-400">CRYPTO</p>
-                          <p className="font-medium">30%</p>
+                          <p className="font-medium">0%</p>
                         </div>
                         <div>
                           <div className="h-2 w-full bg-zinc-600 rounded-full mb-1"></div>
                           <p className="text-zinc-400">FOREX</p>
-                          <p className="font-medium">15%</p>
+                          <p className="font-medium">0%</p>
                         </div>
                         <div>
                           <div className="h-2 w-full bg-zinc-500 rounded-full mb-1"></div>
                           <p className="text-zinc-400">COMMODITY</p>
-                          <p className="font-medium">10%</p>
+                          <p className="font-medium">0%</p>
                         </div>
                       </div>
                       <div className="flex justify-between mt-6">
@@ -287,130 +287,6 @@ export default async function DashboardPage() {
                           </TableRow>
                         </TableBody>
                       </Table>
-                    </CardContent>
-                  </Card>
-                </div>
-              </section>
-
-              {/* 👁 Watchlist + Live Chart Section */}
-              <section className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div>
-                  <div className="flex items-center mb-4">
-                    <div className="w-6 h-6 flex items-center justify-center bg-zinc-950 border border-zinc-900 mr-2">
-                      <Star className="w-3 h-3 text-white" />
-                    </div>
-                    <h2 className="text-sm font-mono uppercase tracking-wider text-white">WATCHLIST</h2>
-                  </div>
-                  <Card className="border border-zinc-900 bg-zinc-950 shadow-[0_0_15px_rgba(0,0,0,0.5)]">
-                    <CardContent className="p-0">
-                      <div className="space-y-px">
-                        <WatchlistItem symbol="BTC/USD" name="Bitcoin" price="68,341.56" change={-2.31} />
-                        <WatchlistItem symbol="ETH/USD" name="Ethereum" price="3,486.92" change={-1.45} />
-                        <WatchlistItem symbol="AAPL" name="Apple Inc" price="187.43" change={0.89} />
-                        <WatchlistItem symbol="MSFT" name="Microsoft" price="414.47" change={1.52} />
-                        <WatchlistItem symbol="GOOGL" name="Alphabet" price="154.93" change={0.36} />
-                        <WatchlistItem symbol="META" name="Meta" price="478.22" change={2.14} />
-                      </div>
-                    </CardContent>
-                  </Card>
-                </div>
-                
-                <div className="lg:col-span-2">
-                  <div className="flex items-center mb-4">
-                    <div className="w-6 h-6 flex items-center justify-center bg-zinc-950 border border-zinc-900 mr-2">
-                      <Activity className="w-3 h-3 text-white" />
-                    </div>
-                    <h2 className="text-sm font-mono uppercase tracking-wider text-white">PERFORMANCE_METRICS</h2>
-                  </div>
-                  <Card className="border border-zinc-900 bg-zinc-950 shadow-[0_0_15px_rgba(0,0,0,0.5)]">
-                    <CardContent className="p-4">
-                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                        <div>
-                          <div className="flex items-center justify-between mb-2">
-                            <h3 className="text-xs font-mono text-zinc-400">TOP_PERFORMING_ALGORITHMS</h3>
-                            <Button variant="ghost" size="sm" className="text-xs font-mono text-zinc-400 hover:text-white hover:bg-zinc-800">
-                              VIEW_ALL
-                            </Button>
-                          </div>
-                          <div className="space-y-1">
-                            <StrategyCard 
-                              name="Momentum Oscillator" 
-                              winRate={68} 
-                              trades={254} 
-                              sharpe={1.82} 
-                              drawdown={12} 
-                              icon={<Sigma className="h-4 w-4" />} 
-                            />
-                            <StrategyCard 
-                              name="Volatility Breakout" 
-                              winRate={72} 
-                              trades={187} 
-                              sharpe={2.1} 
-                              drawdown={15} 
-                              icon={<Activity className="h-4 w-4" />} 
-                            />
-                            <StrategyCard 
-                              name="Moving Average Cross" 
-                              winRate={64} 
-                              trades={421} 
-                              sharpe={1.75} 
-                              drawdown={9} 
-                              icon={<Sigma className="h-4 w-4" />} 
-                            />
-                          </div>
-                        </div>
-                        
-                        <div>
-                          <div className="flex items-center justify-between mb-2">
-                            <h3 className="text-xs font-mono text-zinc-400">RECENT_SIGNALS</h3>
-                            <Button variant="ghost" size="sm" className="text-xs font-mono text-zinc-400 hover:text-white hover:bg-zinc-800">
-                              VIEW_ALL
-                            </Button>
-                          </div>
-                          <div className="p-4 border border-zinc-900 rounded bg-zinc-900/30 space-y-3">
-                            <div className="flex items-center justify-between text-xs">
-                              <div className="flex items-center gap-2">
-                                <div className="w-2 h-2 rounded-full bg-zinc-400"></div>
-                                <span className="text-zinc-400">BTC/USD</span>
-                              </div>
-                              <Badge variant="outline" className="bg-zinc-900/50 text-zinc-300 hover:bg-zinc-800 border-zinc-800 font-mono text-xs">
-                                BUY
-                              </Badge>
-                              <span className="text-zinc-400">4m ago</span>
-                            </div>
-                            <div className="flex items-center justify-between text-xs">
-                              <div className="flex items-center gap-2">
-                                <div className="w-2 h-2 rounded-full bg-zinc-400"></div>
-                                <span className="text-zinc-400">ETH/USD</span>
-                              </div>
-                              <Badge variant="outline" className="bg-zinc-900/50 text-zinc-300 hover:bg-zinc-800 border-zinc-800 font-mono text-xs">
-                                SELL
-                              </Badge>
-                              <span className="text-zinc-400">12m ago</span>
-                            </div>
-                            <div className="flex items-center justify-between text-xs">
-                              <div className="flex items-center gap-2">
-                                <div className="w-2 h-2 rounded-full bg-zinc-400"></div>
-                                <span className="text-zinc-400">TSLA</span>
-                              </div>
-                              <Badge variant="outline" className="bg-zinc-900/50 text-zinc-300 hover:bg-zinc-800 border-zinc-800 font-mono text-xs">
-                                BUY
-                              </Badge>
-                              <span className="text-zinc-400">27m ago</span>
-                            </div>
-                            <div className="flex items-center justify-between text-xs">
-                              <div className="flex items-center gap-2">
-                                <div className="w-2 h-2 rounded-full bg-zinc-400"></div>
-                                <span className="text-zinc-400">AAPL</span>
-                              </div>
-                              <Badge variant="outline" className="bg-zinc-900/50 text-zinc-300 hover:bg-zinc-800 border-zinc-800 font-mono text-xs">
-                                HOLD
-                              </Badge>
-                              <span className="text-zinc-400">41m ago</span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
                     </CardContent>
                   </Card>
                 </div>
