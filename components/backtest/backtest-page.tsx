@@ -15,6 +15,9 @@ import {
 import { Separator } from "@/components/ui/separator"
 import { CheckIcon, ArrowRightIcon, ChevronDownIcon, TerminalIcon, ServerIcon, CpuIcon, BarChartIcon } from "lucide-react"
 import { StrategySettingsPanel } from "@/components/strategy-settings-panel"
+import { ServicePriceInfo } from "@/components/service-price-info"
+import { ServiceValidationError } from "@/components/service-validation-error"
+import { refreshCoinBalance } from "@/components/coin-balance-display"
 
 // Mock function to simulate Pine script to JSON conversion
 const convertPineScriptToJson = (pineScript: string) => {
@@ -143,6 +146,10 @@ export function BacktestingPage() {
   const [countdownTime, setCountdownTime] = useState(30)
   const [backtestResults, setBacktestResults] = useState<any>(null)
   
+  // Add validation error state
+  const [validationError, setValidationError] = useState(false)
+  const [errorDetails, setErrorDetails] = useState({ requiredCoins: 50, currentBalance: 0 })
+  
   // Handle Pine script conversion
   const handleConvertPineScript = () => {
     if (!pineScript.trim()) return
@@ -207,48 +214,99 @@ export function BacktestingPage() {
   }
   
   // Start backtest process
-  const handleStartBacktest = () => {
+  const handleStartBacktest = async () => {
     if (!symbol || !strategySettings?.timeframe || !strategySettings?.dateRange?.from || !strategySettings?.dateRange?.to) {
       // In a real app, show validation error
       return
     }
     
-    setBacktestRunning(true)
-    setActiveStep(3)
-    
-    // Simulate backtest process with countdown
-    const interval = setInterval(() => {
-      setCountdownTime((prev) => {
-        if (prev <= 1) {
-          clearInterval(interval)
-          
-          // Generate optimistic results
-          const months = calculateMonthsBetween(
-            strategySettings.dateRange.from,
-            strategySettings.dateRange.to
-          )
-          
-          // More optimistic results for longer timeframes
-          const profitPercentage = months <= 1 ? 
-            Math.floor(Math.random() * 42) + 27 : // Between 27% and 69% for short timeframes
-            Math.floor(Math.random() * 80) + 50   // Between 50% and 130% for longer timeframes
-          
-          const results = {
-            netProfit: `$${(profitPercentage * 24.5).toFixed(2)}`,
-            maxDrawdown: `${Math.floor(Math.random() * 15) + 5}%`,
-            profitFactor: (Math.random() * 2 + 1.5).toFixed(2),
-            profitPercentage: `${profitPercentage}%`,
-            winRate: `${Math.floor(Math.random() * 25) + 65}%`,
-            trades: Math.floor(Math.random() * 50) + 20
-          }
-          
-          setBacktestResults(results)
-          setBacktestRunning(false)
-          return 0
-        }
-        return prev - 1
+    try {
+      // First check balance via the check-balance endpoint
+      const balanceResponse = await fetch('/api/check-balance')
+      if (!balanceResponse.ok) {
+        throw new Error('Failed to check balance')
+      }
+      
+      // Refresh the coin balance display
+      await refreshCoinBalance()
+      
+      // Check if user has sufficient coins for backtest
+      const response = await fetch('/api/check-service-coins', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ service: 'backtest' })
       })
-    }, 1000)
+      
+      const data = await response.json()
+      
+      if (!response.ok || !data.hasSufficientCoins) {
+        // Show error dialog instead of alert
+        setErrorDetails({
+          requiredCoins: data.requiredCoins,
+          currentBalance: data.coinBalance
+        })
+        setValidationError(true)
+        return
+      }
+      
+      // Deduct coins for the service
+      const deductResponse = await fetch('/api/deduct-service-coins', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ service: 'backtest' })
+      })
+      
+      if (!deductResponse.ok) {
+        const deductData = await deductResponse.json()
+        alert(deductData.error || 'Failed to process payment for this service')
+        return
+      }
+      
+      // Refresh the coin balance display again after deduction
+      await refreshCoinBalance()
+      
+      // If we get here, coins were successfully deducted
+      // Continue with the backtest process
+      setBacktestRunning(true)
+      setActiveStep(3)
+      
+      // Simulate backtest process with countdown
+      const interval = setInterval(() => {
+        setCountdownTime((prev) => {
+          if (prev <= 1) {
+            clearInterval(interval)
+            
+            // Generate optimistic results
+            const months = calculateMonthsBetween(
+              strategySettings.dateRange.from,
+              strategySettings.dateRange.to
+            )
+            
+            // More optimistic results for longer timeframes
+            const profitPercentage = months <= 1 ? 
+              Math.floor(Math.random() * 42) + 27 : // Between 27% and 69% for short timeframes
+              Math.floor(Math.random() * 80) + 50   // Between 50% and 130% for longer timeframes
+            
+            const results = {
+              netProfit: `$${(profitPercentage * 24.5).toFixed(2)}`,
+              maxDrawdown: `${Math.floor(Math.random() * 15) + 5}%`,
+              profitFactor: (Math.random() * 2 + 1.5).toFixed(2),
+              profitPercentage: `${profitPercentage}%`,
+              winRate: `${Math.floor(Math.random() * 25) + 65}%`,
+              trades: Math.floor(Math.random() * 50) + 20
+            }
+            
+            setBacktestResults(results)
+            setBacktestRunning(false)
+            return 0
+          }
+          return prev - 1
+        })
+      }, 1000)
+    } catch (error) {
+      console.error('Error processing backtest payment:', error)
+      alert('An error occurred while processing your request. Please try again.')
+    }
   }
   
   // Calculate months between two dates
@@ -269,6 +327,15 @@ export function BacktestingPage() {
     <div className="space-y-12 max-w-5xl mx-auto font-mono bg-black min-h-screen relative">
       {/* Grid background overlay */}
       <div className="absolute inset-0 bg-[linear-gradient(to_right,#111_1px,transparent_1px),linear-gradient(to_bottom,#111_1px,transparent_1px)] bg-[size:32px_32px] opacity-20"></div>
+      
+      {/* Validation Error Dialog */}
+      <ServiceValidationError 
+        isOpen={validationError}
+        onClose={() => setValidationError(false)}
+        service="backtest"
+        requiredCoins={errorDetails.requiredCoins}
+        currentBalance={errorDetails.currentBalance}
+      />
       
       {/* Step indicator */}
       <div className="flex items-center justify-between px-6 mb-8 relative z-10">
@@ -422,6 +489,9 @@ export function BacktestingPage() {
               className="w-full bg-zinc-950 hover:bg-zinc-900 text-white mt-4 border border-zinc-800 font-mono text-xs uppercase tracking-wider disabled:opacity-50 disabled:cursor-not-allowed"
             >
               START_BACKTEST()
+              <div className="ml-auto">
+                <ServicePriceInfo service="backtest" />
+              </div>
             </Button>
           </div>
         </section>
