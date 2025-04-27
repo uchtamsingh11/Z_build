@@ -38,6 +38,7 @@ type AvailableBrokerConfig = {
 // List of available brokers with their required fields
 const AVAILABLE_BROKERS: AvailableBrokerConfig[] = [
   { name: 'Alice Blue', fields: ['User ID', 'API Key', 'Secret Key'] },
+  { name: 'Angel One', fields: ['Client ID', 'API Key'] },
   { name: 'Angel Broking', fields: ['API Key', 'Secret Key'] },
   { name: 'Binance', fields: ['App Key', 'Secret Key'] },
   { name: 'Delta Exchange', fields: ['API Key', 'Secret Key'] },
@@ -104,6 +105,73 @@ export default function BrokerAuthContent() {
       
       // Start loading state for this specific broker
       setLoadingBrokers(prev => [...prev, broker.id]);
+      
+      // For AngelOne broker, use specialized authentication endpoints
+      if (broker.broker_name === 'Angel One') {
+        if (newStatus) {
+          // Attempting to activate AngelOne broker - needs authentication
+          const response = await fetch('/api/brokers/angelone/authenticate', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ broker_id: broker.id }),
+          });
+          
+          if (!response.ok) {
+            const errorData = await response.json();
+            // Toggle automatically reverts to OFF on auth failure
+            setSavedBrokers(prev => prev.map(b => b.id === broker.id ? { ...b, is_active: false } : b));
+            
+            // Show error notification
+            showNotification({
+              title: 'Login denied by AngelOne',
+              description: `${errorData.details?.message || errorData.details?.error || errorData.error || 'Authentication failed'} 
+              ${errorData.status ? `(Status: ${errorData.status} ${errorData.statusText})` : ''}
+              ${errorData.endpoint ? `Endpoint: ${errorData.endpoint}` : ''}`,
+              type: 'error',
+            });
+            
+            // Remove this broker from loading state
+            setLoadingBrokers(prev => prev.filter(id => id !== broker.id));
+            return;
+          }
+          
+          // Authentication successful
+          setSavedBrokers(prev => prev.map(b => b.id === broker.id ? { ...b, is_active: true } : b));
+          
+          showNotification({
+            title: 'AngelOne broker authenticated successfully',
+            type: 'success',
+          });
+        } else {
+          // Deactivating AngelOne broker
+          const response = await fetch('/api/brokers/angelone/deactivate', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ broker_id: broker.id }),
+          });
+          
+          if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Failed to deactivate broker');
+          }
+          
+          // Broker deactivated successfully
+          setSavedBrokers(prev => prev.map(b => b.id === broker.id ? { ...b, is_active: false } : b));
+          
+          showNotification({
+            title: 'AngelOne broker deactivated',
+            type: 'success',
+          });
+        }
+        
+        // Remove this broker from loading state
+        setLoadingBrokers(prev => prev.filter(id => id !== broker.id));
+        return;
+      }
       
       // For Dhan broker, use specialized authentication endpoints
       if (broker.broker_name === 'Dhan') {

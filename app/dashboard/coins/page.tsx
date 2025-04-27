@@ -25,13 +25,13 @@ export default async function CoinsPage() {
   }
   
   // Fetch user's coin balance
-  const { data: profile } = await supabase
-    .from('profiles')
+  const { data: userCoins } = await supabase
+    .from('users')
     .select('coin_balance')
     .eq('id', user.id)
     .single();
     
-  const coinBalance = profile?.coin_balance || 0;
+  const coinBalance = userCoins?.coin_balance || 0;
   
   // Fetch recent coin transactions
   const { data: transactions } = await supabase

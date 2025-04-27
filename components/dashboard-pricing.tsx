@@ -3,55 +3,29 @@
 import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardHeader, CardFooter, CardTitle, CardDescription } from '@/components/ui/card'
-import { AlertCircle, BadgeCheck, Clock, Coins, CreditCard } from 'lucide-react'
+import { AlertCircle, BadgeCheck, Clock, Coins, CreditCard, Loader2 } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import TransactionHistoryModal from './transaction-history-modal'
 import { createBrowserClient } from '@supabase/ssr'
 import Link from 'next/link'
+
+// Declare cashfree type for TypeScript
+declare global {
+  interface Window {
+    Cashfree: any;
+  }
+}
 
 export default function DashboardPricing() {
     const [showHistory, setShowHistory] = useState(false);
     const [customAmount, setCustomAmount] = useState(500);
     const [customCoins, setCustomCoins] = useState(500);
     const [userBalance, setUserBalance] = useState(0);
-    const supabase = createBrowserClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    );
-
+    
     // Update coins when amount changes (1:1 ratio)
     useEffect(() => {
         setCustomCoins(customAmount);
     }, [customAmount]);
-
-    // Fetch user's coin balance on component mount
-    useEffect(() => {
-        async function fetchUserBalance() {
-            try {
-                const { data: { user } } = await supabase.auth.getUser();
-                if (!user) return;
-
-                const { data, error } = await supabase
-                    .from('users')
-                    .select('coin_balance')
-                    .eq('id', user.id)
-                    .single();
-
-                if (error) {
-                    console.error('Error fetching user balance:', error);
-                    return;
-                }
-
-                if (data) {
-                    setUserBalance(data.coin_balance || 0);
-                }
-            } catch (error) {
-                console.error('Error:', error);
-            }
-        }
-
-        fetchUserBalance();
-    }, []);
 
     const handleHistoryClick = () => {
         setShowHistory(true);
@@ -64,41 +38,6 @@ export default function DashboardPricing() {
     const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const value = parseInt(e.target.value) || 0;
         setCustomAmount(value);
-    };
-
-    const handlePurchase = async (amount: number) => {
-        try {
-            // Get the current user
-            const { data: { user } } = await supabase.auth.getUser();
-            if (!user) {
-                alert('Please log in to purchase coins');
-                return;
-            }
-
-            // Create a transaction record
-            const { error } = await supabase
-                .from('coin_transactions')
-                .insert({
-                    user_id: user.id,
-                    amount: amount,
-                    transaction_type: 'recharge',
-                    description: `Purchased ${amount} coins`
-                });
-
-            if (error) {
-                console.error('Error creating transaction:', error);
-                alert('Failed to complete purchase');
-                return;
-            }
-
-            // Update local state (the trigger will update the user's balance in the database)
-            setUserBalance(prev => prev + amount);
-            alert(`Successfully purchased ${amount} coins!`);
-
-        } catch (error) {
-            console.error('Error processing purchase:', error);
-            alert('An error occurred while processing your purchase');
-        }
     };
 
     return (
@@ -130,10 +69,16 @@ export default function DashboardPricing() {
                     <CardFooter className="px-6 pb-8">
                         <Button 
                             className="w-full h-12 bg-zinc-800 hover:bg-zinc-700 text-white border-zinc-700 mt-4"
+<<<<<<< HEAD
                             onClick={() => handlePurchase(1000)}
                             asChild
                         >
                             <Link href="/auth">BUY_NOW</Link>
+=======
+                            onClick={() => window.location.href = '/pricing'}
+                        >
+                            VIEW DETAILS
+>>>>>>> 82bb08576a74077e2884f81f186d67dce9129f9d
                         </Button>
                     </CardFooter>
                 </Card>
@@ -170,10 +115,16 @@ export default function DashboardPricing() {
                     <CardFooter className="px-6 pb-8">
                         <Button 
                             className="w-full h-12 bg-zinc-800 hover:bg-zinc-700 text-white border-zinc-700 mt-4"
+<<<<<<< HEAD
                             onClick={() => handlePurchase(2500)}
                             asChild
                         >
                             <Link href="/auth">BUY_NOW</Link>
+=======
+                            onClick={() => window.location.href = '/pricing'}
+                        >
+                            VIEW DETAILS
+>>>>>>> 82bb08576a74077e2884f81f186d67dce9129f9d
                         </Button>
                     </CardFooter>
                 </Card>
@@ -214,10 +165,16 @@ export default function DashboardPricing() {
                     <CardFooter className="px-6 pb-8">
                         <Button 
                             className="w-full h-12 bg-zinc-800 hover:bg-zinc-700 text-white border-zinc-700 mt-4"
+<<<<<<< HEAD
                             onClick={() => handlePurchase(customAmount)}
                             asChild
                         >
                             <Link href="/auth">BUY_NOW</Link>
+=======
+                            onClick={() => window.location.href = '/pricing'}
+                        >
+                            VIEW DETAILS
+>>>>>>> 82bb08576a74077e2884f81f186d67dce9129f9d
                         </Button>
                     </CardFooter>
                 </Card>
