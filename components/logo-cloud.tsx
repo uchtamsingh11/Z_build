@@ -58,12 +58,6 @@ export default function LogoCloud() {
                             
                             <div className="flex">
                                 <span className="mx-auto text-lg font-mono text-white opacity-70 hover:opacity-100 transition-opacity uppercase">
-                                    UPSTOX
-                                </span>
-                            </div>
-                            
-                            <div className="flex">
-                                <span className="mx-auto text-lg font-mono text-white opacity-70 hover:opacity-100 transition-opacity uppercase">
                                     BINANCE
                                 </span>
                             </div>

@@ -50,7 +50,7 @@ const AVAILABLE_BROKERS: AvailableBrokerConfig[] = [
   { name: 'Kotak Neo', fields: ['Consumer Key', 'Secret Key', 'Access Token', 'Mobile No.', 'Password', 'MPIN'] },
   { name: 'MetaTrader 4', fields: ['User ID', 'Password', 'Host', 'Port'] },
   { name: 'MetaTrader 5', fields: ['User ID', 'Password', 'Host', 'Port'] },
-  { name: 'Upstox', fields: ['Access Token'] },
+  { name: 'Upstox', fields: ['API Key', 'Secret Key'] },
   { name: 'Zerodha', fields: ['API Key', 'Secret Key'] },
 ];
 
@@ -73,6 +73,102 @@ export default function BrokerAuthContent() {
   // Fetch saved brokers on component mount
   useEffect(() => {
     fetchSavedBrokers();
+  }, []);
+
+  // Handle Upstox OAuth callback completion
+  useEffect(() => {
+    const handleUpstoxAuthCallback = async (event: MessageEvent) => {
+      // Ensure we only handle messages from our own domain
+      if (event.origin !== window.location.origin) return;
+      
+      // Check if this is an Upstox auth success message
+      if (event.data && event.data.type === 'UPSTOX_AUTH_SUCCESS') {
+        // Get the broker ID from localStorage
+        const brokerId = localStorage.getItem('upstox_auth_broker_id');
+        
+        if (!brokerId) {
+          showNotification({
+            title: 'UPSTOX_AUTH_ERROR',
+            description: 'Authentication failed: Unable to identify broker.',
+            type: 'error',
+            duration: 5000
+          });
+          return;
+        }
+        
+        // Clear the broker ID from localStorage
+        localStorage.removeItem('upstox_auth_broker_id');
+        
+        // Verify the authentication was successful
+        const response = await fetch('/api/brokers/upstox/verify', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ broker_id: brokerId }),
+        });
+        
+        if (!response.ok) {
+          showNotification({
+            title: 'UPSTOX_AUTH_ERROR',
+            description: 'Failed to verify authentication.',
+            type: 'error',
+            duration: 5000
+          });
+          
+          // Set the broker as inactive
+          setSavedBrokers(prev => prev.map(b => b.id === brokerId ? { ...b, is_active: false } : b));
+          
+          // Remove this broker from loading state
+          setLoadingBrokers(prev => prev.filter(id => id !== brokerId));
+          return;
+        }
+        
+        // Authentication successful
+        setSavedBrokers(prev => prev.map(b => b.id === brokerId ? { ...b, is_active: true } : b));
+        
+        // Remove this broker from loading state
+        setLoadingBrokers(prev => prev.filter(id => id !== brokerId));
+        
+        showNotification({
+          title: 'UPSTOX_AUTH_SUCCESS',
+          description: 'Upstox has been successfully connected.',
+          type: 'success',
+          duration: 5000
+        });
+      }
+      
+      // Handle Upstox auth failure
+      if (event.data && event.data.type === 'UPSTOX_AUTH_FAILURE') {
+        const brokerId = localStorage.getItem('upstox_auth_broker_id');
+        
+        if (brokerId) {
+          // Clear the broker ID from localStorage
+          localStorage.removeItem('upstox_auth_broker_id');
+          
+          // Set the broker as inactive
+          setSavedBrokers(prev => prev.map(b => b.id === brokerId ? { ...b, is_active: false } : b));
+          
+          // Remove this broker from loading state
+          setLoadingBrokers(prev => prev.filter(id => id !== brokerId));
+        }
+        
+        showNotification({
+          title: 'UPSTOX_AUTH_ERROR',
+          description: event.data.error || 'Authentication failed.',
+          type: 'error',
+          duration: 5000
+        });
+      }
+    };
+    
+    // Add event listener for message events
+    window.addEventListener('message', handleUpstoxAuthCallback);
+    
+    // Clean up the event listener when the component unmounts
+    return () => {
+      window.removeEventListener('message', handleUpstoxAuthCallback);
+    };
   }, []);
 
   const fetchSavedBrokers = async () => {
@@ -249,11 +345,11 @@ export default function BrokerAuthContent() {
         return;
       }
       
-      // For Upstox broker, use specialized authentication endpoints
+      // For Upstox broker, use specialized OAuth authentication
       if (broker.broker_name === 'Upstox') {
         if (newStatus) {
-          // Attempting to activate Upstox broker - needs token verification
-          const response = await fetch('/api/brokers/upstox/verify', {
+          // Attempting to activate Upstox broker - needs OAuth authentication
+          const response = await fetch('/api/brokers/upstox/oauth', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -261,16 +357,15 @@ export default function BrokerAuthContent() {
             body: JSON.stringify({ broker_id: broker.id }),
           });
           
-          const responseData = await response.json();
-          
           if (!response.ok) {
-            // Toggle automatically reverts to OFF on verification failure
+            const errorData = await response.json();
+            // Toggle automatically reverts to OFF on auth failure
             setSavedBrokers(prev => prev.map(b => b.id === broker.id ? { ...b, is_active: false } : b));
             
             // Show error notification
             showNotification({
               title: 'UPSTOX_AUTH_FAILED',
-              description: 'Broker verification failed. Please check your access token and try again.',
+              description: `Broker authentication failed. Please check your credentials and try again.`,
               type: 'error',
               duration: 5000
             });
@@ -280,18 +375,29 @@ export default function BrokerAuthContent() {
             return;
           }
           
-          // Authentication successful
-          setSavedBrokers(prev => prev.map(b => b.id === broker.id ? { ...b, is_active: true } : b));
+          // If the response is successful, we should get a URL to redirect to
+          const data = await response.json();
           
+          if (data.redirect_url) {
+            // Open the Upstox authorization page in a new window
+            const authWindow = window.open(data.redirect_url, 'UpstoxAuth', 'width=600,height=700');
+            
+            // Save the broker ID to localStorage to retrieve it when the OAuth callback returns
+            localStorage.setItem('upstox_auth_broker_id', broker.id);
+            
+            // The rest of the authentication will be handled by the callback endpoint
+            // Keep this broker in loading state until callback resolves
+            return;
+          }
+          
+          // If we get here, something went wrong
+          setSavedBrokers(prev => prev.map(b => b.id === broker.id ? { ...b, is_active: false } : b));
           showNotification({
-            title: 'UPSTOX_AUTH_SUCCESS',
-            description: 'Your Upstox broker connection is now active and ready to use.',
-            type: 'success',
-            duration: 3000
+            title: 'UPSTOX_AUTH_ERROR',
+            description: 'Failed to initiate Upstox OAuth flow.',
+            type: 'error',
+            duration: 5000
           });
-
-          // Create a session for the authenticated broker
-          await createOrUpdateSession(broker.id, true);
         } else {
           // Deactivating Upstox broker
           const response = await fetch('/api/brokers/upstox/deactivate', {
@@ -311,14 +417,9 @@ export default function BrokerAuthContent() {
           setSavedBrokers(prev => prev.map(b => b.id === broker.id ? { ...b, is_active: false } : b));
           
           showNotification({
-            title: 'UPSTOX_DEACTIVATED',
-            description: 'Your Upstox broker connection has been deactivated successfully.',
+            title: 'Upstox broker deactivated',
             type: 'success',
-            duration: 3000
           });
-
-          // Deactivate the session for this broker
-          await createOrUpdateSession(broker.id, false);
         }
         
         // Remove this broker from loading state
@@ -326,7 +427,7 @@ export default function BrokerAuthContent() {
         return;
       }
       
-      // For other brokers, use the standard endpoint
+      // For other brokers, use the general active/inactive toggle endpoint
       const response = await fetch(`/api/brokers/${broker.id}`, {
         method: 'PATCH',
         headers: {
@@ -711,11 +812,6 @@ export default function BrokerAuthContent() {
                 STEP 1: SAVE CREDENTIALS | STEP 2: TOGGLE TO AUTHENTICATE
               </DialogDescription>
             )}
-            {selectedBroker?.name === 'Upstox' && (
-              <DialogDescription className="text-zinc-500 font-mono text-xs mt-2">
-                STEP 1: SAVE ACCESS TOKEN | STEP 2: TOGGLE TO VERIFY
-              </DialogDescription>
-            )}
           </DialogHeader>
           <div className="space-y-5 py-6">
             {selectedBroker?.fields.map((field) => (
@@ -736,14 +832,6 @@ export default function BrokerAuthContent() {
                 <p>Step 1: Save your Dhan credentials</p>
                 <p>Step 2: Toggle ON the broker from Saved Brokers to authenticate</p>
                 <p className="text-zinc-500 mt-2">You can get your credentials from web.dhan.co → My Profile → DhanHQ Trading APIs and Access</p>
-              </div>
-            )}
-            
-            {selectedBroker?.name === 'Upstox' && (
-              <div className="p-3 border border-zinc-800 rounded bg-zinc-900/30 text-xs text-zinc-400 mt-4">
-                <p>Step 1: Paste your Upstox access token</p>
-                <p>Step 2: Toggle ON the broker from Saved Brokers to verify the token</p>
-                <p className="text-zinc-500 mt-2">Note: We don't use OAuth for this integration. You need to manually enter your access token.</p>
               </div>
             )}
           </div>
@@ -774,8 +862,6 @@ export default function BrokerAuthContent() {
             <DialogDescription className="text-zinc-500 font-mono text-xs">
               {editingBroker?.broker_name === 'Dhan' 
                 ? 'UPDATE_BROKER_CREDENTIALS | TOGGLE TO RE-AUTHENTICATE' 
-                : editingBroker?.broker_name === 'Upstox'
-                ? 'UPDATE_ACCESS_TOKEN | TOGGLE TO VERIFY'
                 : 'UPDATE_BROKER_CREDENTIALS'}
             </DialogDescription>
           </DialogHeader>
@@ -796,12 +882,6 @@ export default function BrokerAuthContent() {
             {editingBroker?.broker_name === 'Dhan' && (
               <div className="p-3 border border-zinc-800 rounded bg-zinc-900/30 text-xs text-zinc-400 mt-4">
                 <p>After updating your credentials, you may need to toggle the broker OFF and then ON again to re-authenticate with Dhan.</p>
-              </div>
-            )}
-
-            {editingBroker?.broker_name === 'Upstox' && (
-              <div className="p-3 border border-zinc-800 rounded bg-zinc-900/30 text-xs text-zinc-400 mt-4">
-                <p>After updating your access token, you will need to toggle the broker OFF and then ON again to verify the new token with Upstox.</p>
               </div>
             )}
           </div>

@@ -1,144 +1,270 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
+
+// Environment variables (would normally be in .env)
+const UPSTOX_API_URL = process.env.UPSTOX_API_URL || 'https://api.upstox.com/v2';
+const UPSTOX_CLIENT_ID = process.env.UPSTOX_CLIENT_ID;
+const UPSTOX_CLIENT_SECRET = process.env.UPSTOX_CLIENT_SECRET;
+const UPSTOX_REDIRECT_URI = process.env.UPSTOX_REDIRECT_URI || 'https://www.algoz.tech/api/brokers/upstox/callback';
+const UPSTOX_TOKEN_URL = process.env.UPSTOX_TOKEN_URL || 'https://api.upstox.com/v2/login/authorization/token';
 
 export async function GET(request: Request) {
   try {
-    const supabase = await createClient();
-    
-    // Get the URL and params from the request
     const url = new URL(request.url);
     const code = url.searchParams.get('code');
     const state = url.searchParams.get('state');
     const error = url.searchParams.get('error');
+    const errorDescription = url.searchParams.get('error_description');
     
-    // Check if there's an error
+    // If there's an error, close the window with an error message
     if (error) {
-      throw new Error(`Upstox OAuth error: ${error}`);
+      return new Response(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Upstox Authentication Failed</title>
+          <script>
+            window.opener.postMessage({
+              type: 'UPSTOX_AUTH_FAILURE',
+              error: '${errorDescription || error}'
+            }, window.location.origin);
+            window.close();
+          </script>
+        </head>
+        <body>
+          <h1>Authentication Failed</h1>
+          <p>${errorDescription || error}</p>
+        </body>
+        </html>
+      `, {
+        headers: {
+          'Content-Type': 'text/html',
+        },
+      });
     }
     
     // Check if code and state are present
     if (!code || !state) {
-      throw new Error('Missing authorization code or state parameter');
+      return new Response(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Upstox Authentication Failed</title>
+          <script>
+            window.opener.postMessage({
+              type: 'UPSTOX_AUTH_FAILURE',
+              error: 'Missing code or state parameter'
+            }, window.location.origin);
+            window.close();
+          </script>
+        </head>
+        <body>
+          <h1>Authentication Failed</h1>
+          <p>Missing code or state parameter.</p>
+        </body>
+        </html>
+      `, {
+        headers: {
+          'Content-Type': 'text/html',
+        },
+      });
     }
     
-    // Validate state parameter with the one stored in cookies
-    const cookieStore = await cookies();
-    const storedState = cookieStore.get('upstox_oauth_state')?.value;
+    // Get the supabase client
+    const supabase = await createClient();
     
-    if (!storedState || storedState !== state) {
-      throw new Error('Invalid state parameter');
+    // Find the broker with the matching state
+    const { data: broker, error: brokerError } = await supabase
+      .from('broker_credentials')
+      .select('*')
+      .eq('auth_state', state)
+      .eq('is_pending_auth', true)
+      .single();
+    
+    if (brokerError || !broker) {
+      return new Response(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Upstox Authentication Failed</title>
+          <script>
+            window.opener.postMessage({
+              type: 'UPSTOX_AUTH_FAILURE',
+              error: 'Invalid state parameter'
+            }, window.location.origin);
+            window.close();
+          </script>
+        </head>
+        <body>
+          <h1>Authentication Failed</h1>
+          <p>Invalid state parameter. Please try again.</p>
+        </body>
+        </html>
+      `, {
+        headers: {
+          'Content-Type': 'text/html',
+        },
+      });
     }
     
-    // Clean up the state cookie
-    cookieStore.delete('upstox_oauth_state');
+    // Extract required credentials
+    const { 'API Key': apiKey, 'Secret Key': secretKey } = broker.credentials;
     
     // Exchange the authorization code for an access token
-    const clientId = process.env.UPSTOX_CLIENT_ID;
-    const clientSecret = process.env.UPSTOX_CLIENT_SECRET;
-    
-    if (!clientId || !clientSecret) {
-      throw new Error('Missing Upstox client credentials');
-    }
-    
-    const tokenUrl = 'https://api.upstox.com/v2/login/authorization/token';
-    const redirectUri = `${url.origin}/api/brokers/upstox/callback`;
-    
-    const tokenResponse = await fetch(tokenUrl, {
+    const tokenResponse = await fetch(UPSTOX_TOKEN_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
       },
       body: new URLSearchParams({
         code,
-        client_id: clientId,
-        client_secret: clientSecret,
-        redirect_uri: redirectUri,
+        client_id: apiKey,
+        client_secret: secretKey,
+        redirect_uri: UPSTOX_REDIRECT_URI,
         grant_type: 'authorization_code',
-      }),
+      }).toString(),
     });
     
     if (!tokenResponse.ok) {
-      const errorData = await tokenResponse.json();
-      throw new Error(`Failed to exchange code for token: ${JSON.stringify(errorData)}`);
-    }
-    
-    const tokenData = await tokenResponse.json();
-    const accessToken = tokenData.access_token;
-    
-    // Check if user is authenticated
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    
-    if (authError || !user) {
-      return NextResponse.redirect('/auth/signin?error=authentication_required');
-    }
-    
-    // Verify the token by calling Upstox's user profile API
-    const profileResponse = await fetch('https://api.upstox.com/v2/user/profile', {
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-      },
-    });
-    
-    if (!profileResponse.ok) {
-      throw new Error('Failed to verify the access token');
-    }
-    
-    const profileData = await profileResponse.json();
-    
-    // Check if the broker is already saved
-    const { data: existingBroker, error: queryError } = await supabase
-      .from('broker_credentials')
-      .select('*')
-      .eq('user_id', user.id)
-      .eq('broker_name', 'Upstox')
-      .maybeSingle();
-    
-    if (queryError) {
-      throw queryError;
-    }
-    
-    // Prepare broker credential object
-    const credentials = {
-      'Access Token': accessToken,
-      ...tokenData.refresh_token ? { 'Refresh Token': tokenData.refresh_token } : {},
-      ...tokenData.expires_in ? { 'Expires In': tokenData.expires_in } : {},
-    };
-    
-    if (existingBroker) {
-      // Update existing broker
-      const { error: updateError } = await supabase
+      let errorMessage = 'Failed to exchange code for token';
+      try {
+        const errorData = await tokenResponse.json();
+        errorMessage = errorData.error_description || errorData.error || errorMessage;
+      } catch (e) {
+        // Ignore parse errors
+      }
+      
+      // Clear the pending auth state
+      await supabase
         .from('broker_credentials')
         .update({
-          credentials,
-          is_active: true,
+          is_pending_auth: false,
+          auth_state: null,
         })
-        .eq('id', existingBroker.id);
+        .eq('id', broker.id);
       
-      if (updateError) {
-        throw updateError;
-      }
-    } else {
-      // Insert new broker
-      const { error: insertError } = await supabase
-        .from('broker_credentials')
-        .insert({
-          user_id: user.id,
-          broker_name: 'Upstox',
-          credentials,
-          is_active: true,
-        });
-      
-      if (insertError) {
-        throw insertError;
-      }
+      return new Response(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Upstox Authentication Failed</title>
+          <script>
+            window.opener.postMessage({
+              type: 'UPSTOX_AUTH_FAILURE',
+              error: '${errorMessage}'
+            }, window.location.origin);
+            window.close();
+          </script>
+        </head>
+        <body>
+          <h1>Authentication Failed</h1>
+          <p>${errorMessage}</p>
+        </body>
+        </html>
+      `, {
+        headers: {
+          'Content-Type': 'text/html',
+        },
+      });
     }
     
-    // Redirect to broker auth page with success message
-    return NextResponse.redirect('/broker-auth?success=upstox_connected');
+    // Parse the token response
+    const tokenData = await tokenResponse.json();
+    
+    // Update the broker credentials with the tokens
+    const updatedCredentials = {
+      ...broker.credentials,
+      'Access Token': tokenData.access_token,
+      'Refresh Token': tokenData.refresh_token,
+      'Token Type': tokenData.token_type,
+      'Expires In': tokenData.expires_in,
+    };
+    
+    // Save the updated credentials and mark the broker as active
+    const { error: updateError } = await supabase
+      .from('broker_credentials')
+      .update({
+        credentials: updatedCredentials,
+        is_active: true,
+        is_pending_auth: false,
+        auth_state: null,
+      })
+      .eq('id', broker.id);
+    
+    if (updateError) {
+      return new Response(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Upstox Authentication Failed</title>
+          <script>
+            window.opener.postMessage({
+              type: 'UPSTOX_AUTH_FAILURE',
+              error: 'Failed to save authentication tokens'
+            }, window.location.origin);
+            window.close();
+          </script>
+        </head>
+        <body>
+          <h1>Authentication Failed</h1>
+          <p>Failed to save authentication tokens.</p>
+        </body>
+        </html>
+      `, {
+        headers: {
+          'Content-Type': 'text/html',
+        },
+      });
+    }
+    
+    // Return a success page that closes itself and notifies the parent window
+    return new Response(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Upstox Authentication Successful</title>
+        <script>
+          window.opener.postMessage({
+            type: 'UPSTOX_AUTH_SUCCESS'
+          }, window.location.origin);
+          window.close();
+        </script>
+      </head>
+      <body>
+        <h1>Authentication Successful</h1>
+        <p>You can close this window now.</p>
+      </body>
+      </html>
+    `, {
+      headers: {
+        'Content-Type': 'text/html',
+      },
+    });
   } catch (error: any) {
     console.error('Upstox callback error:', error);
-    // Redirect to broker auth page with error message
-    return NextResponse.redirect('/broker-auth?error=' + encodeURIComponent(error.message || 'Failed to connect Upstox'));
+    
+    return new Response(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Upstox Authentication Failed</title>
+        <script>
+          window.opener.postMessage({
+            type: 'UPSTOX_AUTH_FAILURE',
+            error: 'An unexpected error occurred'
+          }, window.location.origin);
+          window.close();
+        </script>
+      </head>
+      <body>
+        <h1>Authentication Failed</h1>
+        <p>An unexpected error occurred.</p>
+      </body>
+      </html>
+    `, {
+      headers: {
+        'Content-Type': 'text/html',
+      },
+    });
   }
 } 
