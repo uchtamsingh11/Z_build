@@ -1,22 +1,55 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
-import { createChart, CandlestickSeries } from "lightweight-charts";
-import { Search, Sun, Moon } from "lucide-react";
+import { createChart, CandlestickSeries, BarSeries, LineSeries } from "lightweight-charts";
+import { Search, Sun, Moon, User, Settings, LogOut, BookOpen, Home, HelpCircle, Bell, ChevronDown } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { 
   Sheet, 
   SheetContent, 
   SheetTrigger,
-  SheetTitle
+  SheetTitle,
+  SheetHeader,
+  SheetFooter
 } from "@/components/ui/sheet";
 import { Switch } from "@/components/ui/switch";
+import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
+import SymbolSearchPopup from "@/components/tradingview/symbol-search-popup";
+import { createClient } from '@/lib/supabase/client';
+import { useRouter } from "next/navigation";
+import IndicatorsIcon from "@/components/indicators-icon";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 export default function AdvancedChartsPage() {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [isDarkMode, setIsDarkMode] = useState(false);
+  const [isSearchPopupOpen, setIsSearchPopupOpen] = useState(false);
+  const [currentSymbol, setCurrentSymbol] = useState("BTCUSD");
+  const router = useRouter();
+  const [userEmail, setUserEmail] = useState("user@example.com");
+  const [timeframe, setTimeframe] = useState("D");
+  const [chartType, setChartType] = useState<"candlestick" | "bar" | "line">("candlestick");
+
+  useEffect(() => {
+    // Check for current user and get email
+    const fetchUserEmail = async () => {
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        setUserEmail(user.email || "user@example.com");
+      }
+    };
+    
+    fetchUserEmail();
+  }, []);
 
   useEffect(() => {
     if (!chartContainerRef.current) return;
@@ -58,7 +91,7 @@ export default function AdvancedChartsPage() {
         secondsVisible: false,
       },
     });
-    const candleSeries = chart.addSeries(CandlestickSeries, {});
+    
     // Generate one unique data point per day for 30 days
     const generateMockCandleData = () => {
       const data = [];
@@ -83,8 +116,35 @@ export default function AdvancedChartsPage() {
       }
       return data;
     };
+    
+    // Generate line chart data (only time and value needed)
+    const generateLineData = () => {
+      const candleData = generateMockCandleData();
+      return candleData.map(item => ({
+        time: item.time,
+        value: item.close
+      }));
+    };
+    
     const candleData = generateMockCandleData();
-    candleSeries.setData(candleData);
+    const lineData = generateLineData();
+    
+    let series;
+    if (chartType === "candlestick") {
+      series = chart.addSeries(CandlestickSeries, {});
+      series.setData(candleData);
+    } else if (chartType === "bar") {
+      series = chart.addSeries(BarSeries, {});
+      series.setData(candleData);
+    } else if (chartType === "line") {
+      series = chart.addSeries(LineSeries, {});
+      series.setData(lineData);
+    } else {
+      // Default to candlestick if for some reason chartType is not one of the expected values
+      series = chart.addSeries(CandlestickSeries, {});
+      series.setData(candleData);
+    }
+    
     const handleResize = () => {
       chart.resize(container.clientWidth, container.clientHeight);
     };
@@ -94,12 +154,21 @@ export default function AdvancedChartsPage() {
       document.head.removeChild(style);
       chart.remove();
     };
-  }, [isDarkMode]);
+  }, [isDarkMode, chartType]);
 
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    // Implement search functionality here
-    console.log("Searching for:", searchQuery);
+  const handleOpenSearchPopup = () => {
+    setIsSearchPopupOpen(true);
+  };
+
+  const handleCloseSearchPopup = () => {
+    setIsSearchPopupOpen(false);
+  };
+
+  const handleSelectSymbol = (symbol: string) => {
+    setCurrentSymbol(symbol);
+    setIsSearchPopupOpen(false);
+    // Here you would normally update the chart with the new symbol data
+    console.log(`Selected symbol: ${symbol}`);
   };
 
   const toggleTheme = () => {
@@ -110,6 +179,23 @@ export default function AdvancedChartsPage() {
     } else {
       document.documentElement.classList.remove('dark-mode');
     }
+  };
+
+  const handleSignOut = async () => {
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    router.push('/'); // Redirect to landing page
+  };
+
+  const handleTimeframeChange = (newTimeframe: string) => {
+    setTimeframe(newTimeframe);
+    // In a real app, you would fetch new data based on the timeframe
+    console.log(`Timeframe changed to: ${newTimeframe}`);
+  };
+
+  const handleChartTypeChange = (newType: "candlestick" | "bar" | "line") => {
+    setChartType(newType);
+    console.log(`Chart type changed to: ${newType}`);
   };
 
   return (
@@ -123,8 +209,8 @@ export default function AdvancedChartsPage() {
               <button className="focus:outline-none">
                 <Avatar className="h-8 w-8 cursor-pointer transition-transform hover:scale-105">
                   <AvatarImage src="/avatar-placeholder.svg" alt="Profile" />
-                  <AvatarFallback className={`${isDarkMode ? 'bg-zinc-800 text-zinc-200' : 'bg-zinc-100 text-zinc-800'}`}>
-                    ZB
+                  <AvatarFallback className="!bg-black !text-white border border-zinc-800">
+                    <User size={16} color="white" strokeWidth={2} />
                   </AvatarFallback>
                 </Avatar>
               </button>
@@ -132,37 +218,206 @@ export default function AdvancedChartsPage() {
             
             <SheetContent 
               side="left" 
-              className={`w-64 p-6 ${isDarkMode ? 'bg-zinc-900 text-white' : 'bg-white text-zinc-900'}`}>
-              <SheetTitle className="sr-only">Theme Settings</SheetTitle>
-              <div className="flex flex-col space-y-6 mt-6">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
-                    {isDarkMode ? <Moon size={18} /> : <Sun size={18} />}
-                    <span className="text-sm font-medium">Theme</span>
+              className={`w-80 p-0 ${isDarkMode ? 'bg-zinc-900 text-white border-r border-zinc-800' : 'bg-white text-zinc-900 border-r border-zinc-200'}`}>
+              <SheetHeader className="p-6 pb-4 border-b border-solid border-0 border-b-zinc-800/20">
+                <SheetTitle className="sr-only">User Profile</SheetTitle>
+                <div className="flex items-center space-x-4">
+                  <Avatar className="h-14 w-14 border border-solid border-zinc-700/20">
+                    <AvatarImage src="/avatar-placeholder.svg" alt="Profile" />
+                    <AvatarFallback className="!bg-black !text-white border border-zinc-800">
+                      <User size={24} strokeWidth={1.5} className="text-white" />
+                    </AvatarFallback>
+                  </Avatar>
+                  <div>
+                    <p className="text-sm mt-1">{userEmail}</p>
                   </div>
-                  <Switch 
-                    checked={isDarkMode} 
-                    onCheckedChange={toggleTheme} 
-                    className="data-[state=checked]:bg-blue-600"
-                  />
+                </div>
+              </SheetHeader>
+              
+              <div className="px-6 py-4 flex flex-col gap-6">
+                <div className="flex flex-col gap-3">
+                  <h4 className={`text-xs uppercase font-semibold ${isDarkMode ? 'text-zinc-400' : 'text-zinc-500'} tracking-wide`}>Navigation</h4>
+                  <div className="flex flex-col gap-1">
+                    <Button variant="ghost" className="w-full justify-start h-10 px-3 gap-3 rounded-md">
+                      <Home size={18} strokeWidth={1.5} />
+                      <span className="font-normal">Dashboard</span>
+                    </Button>
+                    <Button variant="ghost" className="w-full justify-start h-10 px-3 gap-3 rounded-md">
+                      <BookOpen size={18} strokeWidth={1.5} />
+                      <span className="font-normal">Trading History</span>
+                    </Button>
+                    <Button variant="ghost" className="w-full justify-start h-10 px-3 gap-3 rounded-md">
+                      <Bell size={18} strokeWidth={1.5} />
+                      <span className="font-normal">Alerts</span>
+                    </Button>
+                  </div>
+                </div>
+                
+                <Separator className={isDarkMode ? 'bg-zinc-800/50 h-px' : 'bg-zinc-200 h-px'} />
+                
+                <div className="flex flex-col gap-3">
+                  <h4 className={`text-xs uppercase font-semibold ${isDarkMode ? 'text-zinc-400' : 'text-zinc-500'} tracking-wide`}>Settings</h4>
+                  <div className="flex flex-col gap-3">
+                    <div className="flex items-center justify-between px-3 py-2">
+                      <div className="flex items-center gap-3">
+                        {isDarkMode ? <Moon size={18} strokeWidth={1.5} /> : <Sun size={18} strokeWidth={1.5} />}
+                        <span className="text-sm">Dark Mode</span>
+                      </div>
+                      <Switch 
+                        checked={isDarkMode} 
+                        onCheckedChange={toggleTheme} 
+                        className={`data-[state=checked]:bg-zinc-800 border ${isDarkMode ? 'border-zinc-600' : 'border-zinc-300'}`}
+                      />
+                    </div>
+                    
+                    <Button variant="ghost" className="w-full justify-start h-10 px-3 gap-3 rounded-md">
+                      <Settings size={18} strokeWidth={1.5} />
+                      <span className="font-normal">Account Settings</span>
+                    </Button>
+                    
+                    <Button variant="ghost" className="w-full justify-start h-10 px-3 gap-3 rounded-md">
+                      <HelpCircle size={18} strokeWidth={1.5} />
+                      <span className="font-normal">Help & Support</span>
+                    </Button>
+                    
+                    <Button 
+                      variant="ghost" 
+                      className="w-full justify-start text-red-500 hover:text-red-600 hover:bg-red-50/10 dark:hover:bg-red-950/10 h-10 px-3 gap-3 rounded-md"
+                      onClick={handleSignOut}
+                    >
+                      <LogOut size={18} strokeWidth={1.5} />
+                      <span className="font-normal">Sign Out</span>
+                    </Button>
+                  </div>
                 </div>
               </div>
             </SheetContent>
           </Sheet>
           
-          {/* Search form */}
-          <form onSubmit={handleSearch} className="relative w-64">
-            <div className="relative">
-              <Search className={`absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 ${isDarkMode ? 'text-zinc-400' : 'text-zinc-500'}`} />
-              <Input
-                type="text"
-                placeholder="Search symbols..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className={`h-8 w-full ${isDarkMode ? 'bg-zinc-900 border-zinc-800 text-white' : 'bg-zinc-50 border-zinc-200 text-zinc-900'} pl-8 text-xs rounded-full`}
-              />
+          {/* Search button to open symbol search popup */}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleOpenSearchPopup}
+            className={`flex h-9 items-center space-x-2 rounded-md px-3 ${
+              isDarkMode ? 'hover:bg-zinc-800' : 'hover:bg-zinc-100'
+            }`}
+          >
+            <Search className={`h-4.5 w-4.5 ${isDarkMode ? 'text-zinc-400' : 'text-zinc-500'}`} />
+            <span className={`text-sm font-medium ${isDarkMode ? 'text-zinc-200' : 'text-zinc-800'}`}>
+              {currentSymbol}
+            </span>
+          </Button>
+          
+          {/* Vertical divider */}
+          <div className={`h-6 w-px ${isDarkMode ? 'bg-zinc-700' : 'bg-zinc-300'}`}></div>
+          
+          {/* Timeframe dropdown */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                className={`flex h-9 px-2 rounded-md items-center ${
+                  isDarkMode ? 'hover:bg-zinc-800' : 'hover:bg-zinc-100'
+                }`}
+              >
+                <span className={`font-medium text-sm ${isDarkMode ? 'text-zinc-200' : 'text-zinc-800'}`}>
+                  {timeframe}
+                </span>
+                <ChevronDown className={`ml-1 h-4 w-4 ${isDarkMode ? 'text-zinc-400' : 'text-zinc-500'}`} />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="center" className={`${isDarkMode ? 'bg-zinc-900 border-zinc-800' : 'bg-white border-zinc-200'}`}>
+              <DropdownMenuItem onClick={() => handleTimeframeChange("1m")} className={`${isDarkMode ? 'text-zinc-200 focus:bg-zinc-800' : 'text-zinc-800 focus:bg-zinc-100'}`}>1m</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleTimeframeChange("5m")} className={`${isDarkMode ? 'text-zinc-200 focus:bg-zinc-800' : 'text-zinc-800 focus:bg-zinc-100'}`}>5m</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleTimeframeChange("15m")} className={`${isDarkMode ? 'text-zinc-200 focus:bg-zinc-800' : 'text-zinc-800 focus:bg-zinc-100'}`}>15m</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleTimeframeChange("1h")} className={`${isDarkMode ? 'text-zinc-200 focus:bg-zinc-800' : 'text-zinc-800 focus:bg-zinc-100'}`}>1h</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleTimeframeChange("4h")} className={`${isDarkMode ? 'text-zinc-200 focus:bg-zinc-800' : 'text-zinc-800 focus:bg-zinc-100'}`}>4h</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleTimeframeChange("D")} className={`${isDarkMode ? 'text-zinc-200 focus:bg-zinc-800' : 'text-zinc-800 focus:bg-zinc-100'}`}>D</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleTimeframeChange("W")} className={`${isDarkMode ? 'text-zinc-200 focus:bg-zinc-800' : 'text-zinc-800 focus:bg-zinc-100'}`}>W</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleTimeframeChange("M")} className={`${isDarkMode ? 'text-zinc-200 focus:bg-zinc-800' : 'text-zinc-800 focus:bg-zinc-100'}`}>M</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          
+          {/* Vertical divider */}
+          <div className={`h-6 w-px ${isDarkMode ? 'bg-zinc-700' : 'bg-zinc-300'}`}></div>
+          
+          {/* Chart type selector */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                className={`flex h-9 rounded-md px-2 items-center ${
+                  isDarkMode ? 'hover:bg-zinc-800' : 'hover:bg-zinc-100'
+                }`}
+              >
+                {chartType === "candlestick" && (
+                  <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg" className="mr-0">
+                    <rect x="4" y="3" width="2" height="12" rx="0.5" className={isDarkMode ? 'fill-zinc-300' : 'fill-zinc-700'} />
+                    <rect x="8" y="6" width="2" height="9" rx="0.5" className={isDarkMode ? 'fill-zinc-300' : 'fill-zinc-700'} />
+                    <rect x="12" y="9" width="2" height="6" rx="0.5" className={isDarkMode ? 'fill-zinc-300' : 'fill-zinc-700'} />
+                  </svg>
+                )}
+                {chartType === "bar" && (
+                  <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg" className="mr-0">
+                    <line x1="4" y1="4" x2="4" y2="14" stroke={isDarkMode ? '#d4d4d8' : '#3f3f46'} strokeWidth="2" strokeLinecap="round" />
+                    <line x1="9" y1="6" x2="9" y2="14" stroke={isDarkMode ? '#d4d4d8' : '#3f3f46'} strokeWidth="2" strokeLinecap="round" />
+                    <line x1="14" y1="8" x2="14" y2="14" stroke={isDarkMode ? '#d4d4d8' : '#3f3f46'} strokeWidth="2" strokeLinecap="round" />
+                  </svg>
+                )}
+                {chartType === "line" && (
+                  <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg" className="mr-0">
+                    <path d="M2 14L6 10L10 12L16 6" stroke={isDarkMode ? '#d4d4d8' : '#3f3f46'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                )}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="center" className={`${isDarkMode ? 'bg-zinc-900 border-zinc-800' : 'bg-white border-zinc-200'}`}>
+              <DropdownMenuItem onClick={() => handleChartTypeChange("candlestick")} className={`${isDarkMode ? 'text-zinc-200 focus:bg-zinc-800' : 'text-zinc-800 focus:bg-zinc-100'}`}>
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" className="mr-2">
+                  <rect x="3" y="2" width="2" height="12" rx="0.5" className={isDarkMode ? 'fill-zinc-300' : 'fill-zinc-700'} />
+                  <rect x="7" y="5" width="2" height="9" rx="0.5" className={isDarkMode ? 'fill-zinc-300' : 'fill-zinc-700'} />
+                  <rect x="11" y="8" width="2" height="6" rx="0.5" className={isDarkMode ? 'fill-zinc-300' : 'fill-zinc-700'} />
+                </svg>
+                Candles
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleChartTypeChange("bar")} className={`${isDarkMode ? 'text-zinc-200 focus:bg-zinc-800' : 'text-zinc-800 focus:bg-zinc-100'}`}>
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" className="mr-2">
+                  <line x1="4" y1="4" x2="4" y2="12" stroke={isDarkMode ? '#d4d4d8' : '#3f3f46'} strokeWidth="1.5" />
+                  <line x1="8" y1="6" x2="8" y2="14" stroke={isDarkMode ? '#d4d4d8' : '#3f3f46'} strokeWidth="1.5" />
+                  <line x1="12" y1="2" x2="12" y2="10" stroke={isDarkMode ? '#d4d4d8' : '#3f3f46'} strokeWidth="1.5" />
+                </svg>
+                Bar
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleChartTypeChange("line")} className={`${isDarkMode ? 'text-zinc-200 focus:bg-zinc-800' : 'text-zinc-800 focus:bg-zinc-100'}`}>
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" className="mr-2">
+                  <path d="M2 12L6 8L10 10L14 4" stroke={isDarkMode ? '#d4d4d8' : '#3f3f46'} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+                Line
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          
+          {/* Vertical divider */}
+          <div className={`h-6 w-px ${isDarkMode ? 'bg-zinc-700' : 'bg-zinc-300'}`}></div>
+          
+          {/* Indicators button */}
+          <Button
+            variant="ghost"
+            size="sm"
+            className={`flex h-9 items-center space-x-2 rounded-md px-3 ${
+              isDarkMode ? 'hover:bg-zinc-800' : 'hover:bg-zinc-100'
+            }`}
+          >
+            <div className="flex items-center">
+              <IndicatorsIcon className={`h-4.5 w-4.5 ${isDarkMode ? 'text-zinc-200' : 'text-zinc-800'}`} />
+              <span className={`ml-2 text-sm font-medium ${isDarkMode ? 'text-zinc-200' : 'text-zinc-800'}`}>
+                Indicators
+              </span>
             </div>
-          </form>
+          </Button>
         </div>
       </header>
       
@@ -171,21 +426,16 @@ export default function AdvancedChartsPage() {
         className="chart-container"
         style={{ width: '100%', height: '100vh', margin: 0, padding: 0 }}
       />
-      
-      {/* Add styling for dark/light mode */}
-      <style jsx global>{`
-        .dark-mode {
-          color-scheme: dark;
-        }
-        :root {
-          --background: ${isDarkMode ? '#121212' : '#ffffff'};
-          --foreground: ${isDarkMode ? '#ffffff' : '#000000'};
-        }
-        body {
-          background-color: var(--background);
-          color: var(--foreground);
-        }
-      `}</style>
+
+      {/* Symbol search popup */}
+      {isSearchPopupOpen && (
+        <SymbolSearchPopup 
+          isOpen={isSearchPopupOpen}
+          onClose={handleCloseSearchPopup}
+          onSelectSymbol={handleSelectSymbol}
+          isDarkMode={isDarkMode}
+        />
+      )}
     </div>
   );
 }
