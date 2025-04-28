@@ -171,6 +171,9 @@ export async function GET(request: Request) {
     // Parse the token response
     const tokenData = await tokenResponse.json();
     
+    // Log token data for debugging (remove in production)
+    console.log('Token received:', tokenData.access_token ? 'Token received successfully' : 'No token received');
+    
     // Update the broker credentials with the tokens
     const updatedCredentials = {
       ...broker.credentials,
@@ -185,13 +188,17 @@ export async function GET(request: Request) {
       .from('broker_credentials')
       .update({
         credentials: updatedCredentials,
+        access_token: tokenData.access_token, // Store in dedicated column
         is_active: true,
         is_pending_auth: false,
         auth_state: null,
       })
       .eq('id', broker.id);
-    
+      
+    // Log any update errors
     if (updateError) {
+      console.error('Error updating broker credentials:', updateError);
+      
       return new Response(`
         <!DOCTYPE html>
         <html>
@@ -207,7 +214,7 @@ export async function GET(request: Request) {
         </head>
         <body>
           <h1>Authentication Failed</h1>
-          <p>Failed to save authentication tokens.</p>
+          <p>Failed to save authentication tokens. Error: ${updateError.message || 'Unknown error'}</p>
         </body>
         </html>
       `, {
@@ -216,6 +223,18 @@ export async function GET(request: Request) {
         },
       });
     }
+    
+    // Verify the token was saved properly
+    const { data: verifyBroker, error: verifyError } = await supabase
+      .from('broker_credentials')
+      .select('credentials, access_token')
+      .eq('id', broker.id)
+      .single();
+      
+    console.log('Verification check:', {
+      hasTokenInCredentials: verifyBroker?.credentials?.['Access Token'] ? 'Yes' : 'No',
+      hasTokenInColumn: verifyBroker?.access_token ? 'Yes' : 'No',
+    });
     
     // Return a success page that closes itself and notifies the parent window
     return new Response(`
