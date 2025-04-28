@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 
 export default function BackButton() {
   return (
-    <div className="absolute top-28 left-8 md:left-12 lg:left-16">
+    <div className="absolute top-8 left-8 md:left-12 lg:left-16">
       <Button
         asChild
         variant="ghost"

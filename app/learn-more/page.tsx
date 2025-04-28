@@ -6,7 +6,6 @@ import Image from 'next/image'
 import { motion } from 'framer-motion'
 import { Button } from '@/components/ui/button'
 import { HeroHeader } from '@/components/hero5-header'
-import BackButton from '@/components/back-button'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
@@ -129,7 +128,6 @@ export default function LearnMorePage() {
         <div className="absolute top-[15%] -left-[10%] w-[500px] h-[500px] bg-blue-500/10 rounded-full blur-[120px] pointer-events-none"></div>
         <div className="absolute bottom-[5%] right-[5%] w-[300px] h-[300px] bg-indigo-500/10 rounded-full blur-[100px] pointer-events-none"></div>
         
-        <BackButton />
         
         <div className="container mx-auto px-4 sm:px-6 py-24 max-w-6xl relative z-10">
           <motion.div 
