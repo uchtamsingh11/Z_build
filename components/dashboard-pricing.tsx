@@ -39,6 +39,13 @@ export default function DashboardPricing() {
         const value = parseInt(e.target.value) || 0;
         setCustomAmount(value);
     };
+    
+    const handlePurchase = (amount: number) => {
+        // This function will be used when user clicks buy button
+        // For now it just redirects to auth page, the actual purchase
+        // functionality will be handled on the auth page
+        console.log(`Purchase initiated for ${amount} coins`);
+    };
 
     return (
         <div className="max-w-6xl mx-auto pb-24">
@@ -69,16 +76,10 @@ export default function DashboardPricing() {
                     <CardFooter className="px-6 pb-8">
                         <Button 
                             className="w-full h-12 bg-zinc-800 hover:bg-zinc-700 text-white border-zinc-700 mt-4"
-<<<<<<< HEAD
                             onClick={() => handlePurchase(1000)}
                             asChild
                         >
                             <Link href="/auth">BUY_NOW</Link>
-=======
-                            onClick={() => window.location.href = '/pricing'}
-                        >
-                            VIEW DETAILS
->>>>>>> 82bb08576a74077e2884f81f186d67dce9129f9d
                         </Button>
                     </CardFooter>
                 </Card>
@@ -115,16 +116,10 @@ export default function DashboardPricing() {
                     <CardFooter className="px-6 pb-8">
                         <Button 
                             className="w-full h-12 bg-zinc-800 hover:bg-zinc-700 text-white border-zinc-700 mt-4"
-<<<<<<< HEAD
                             onClick={() => handlePurchase(2500)}
                             asChild
                         >
                             <Link href="/auth">BUY_NOW</Link>
-=======
-                            onClick={() => window.location.href = '/pricing'}
-                        >
-                            VIEW DETAILS
->>>>>>> 82bb08576a74077e2884f81f186d67dce9129f9d
                         </Button>
                     </CardFooter>
                 </Card>
@@ -165,16 +160,10 @@ export default function DashboardPricing() {
                     <CardFooter className="px-6 pb-8">
                         <Button 
                             className="w-full h-12 bg-zinc-800 hover:bg-zinc-700 text-white border-zinc-700 mt-4"
-<<<<<<< HEAD
                             onClick={() => handlePurchase(customAmount)}
                             asChild
                         >
                             <Link href="/auth">BUY_NOW</Link>
-=======
-                            onClick={() => window.location.href = '/pricing'}
-                        >
-                            VIEW DETAILS
->>>>>>> 82bb08576a74077e2884f81f186d67dce9129f9d
                         </Button>
                     </CardFooter>
                 </Card>
