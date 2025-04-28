@@ -21,7 +21,7 @@ export async function GET(request: Request) {
     const state = crypto.randomUUID();
     
     // Store state in cookies for validation during callback
-    const cookieStore = cookies();
+    const cookieStore = await cookies();
     cookieStore.set('upstox_oauth_state', state, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',

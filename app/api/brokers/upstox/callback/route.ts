@@ -23,7 +23,7 @@ export async function GET(request: Request) {
     }
     
     // Validate state parameter with the one stored in cookies
-    const cookieStore = cookies();
+    const cookieStore = await cookies();
     const storedState = cookieStore.get('upstox_oauth_state')?.value;
     
     if (!storedState || storedState !== state) {
