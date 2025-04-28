@@ -1,46 +1,94 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
 
-// This endpoint initiates the OAuth flow by redirecting to Upstox login
-export async function GET(request: Request) {
+// Environment variables (would normally be in .env)
+const UPSTOX_API_URL = process.env.UPSTOX_API_URL || 'https://api.upstox.com/v2';
+const UPSTOX_LOGIN_URL = process.env.UPSTOX_LOGIN_URL || 'https://api.upstox.com/v2/login/authorization/dialog';
+const UPSTOX_REDIRECT_URI = process.env.UPSTOX_REDIRECT_URI || 'https://www.algoz.tech/api/brokers/upstox/callback';
+
+export async function POST(request: Request) {
   try {
-    // Get client ID from environment variables
-    const clientId = process.env.UPSTOX_CLIENT_ID;
-    if (!clientId) {
-      throw new Error('Missing Upstox client ID in environment variables');
+    const supabase = await createClient();
+    const { broker_id } = await request.json();
+    
+    // Check if user is authenticated
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    
+    if (authError || !user) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
     }
 
-    // Get the URL from the request
-    const url = new URL(request.url);
+    // Check if broker exists and belongs to the user
+    const { data: broker, error: brokerError } = await supabase
+      .from('broker_credentials')
+      .select('*')
+      .eq('id', broker_id)
+      .eq('user_id', user.id)
+      .single();
+
+    if (brokerError || !broker) {
+      return NextResponse.json(
+        { error: 'Broker not found' },
+        { status: 404 }
+      );
+    }
+
+    // Ensure this is an Upstox broker
+    if (broker.broker_name !== 'Upstox') {
+      return NextResponse.json(
+        { error: 'Not an Upstox broker' },
+        { status: 400 }
+      );
+    }
+
+    // Extract required credentials
+    const { 'API Key': apiKey, 'Secret Key': secretKey } = broker.credentials;
     
-    // The redirect URI should be the callback endpoint in your application
-    const redirectUri = `${url.origin}/api/brokers/upstox/callback`;
+    if (!apiKey || !secretKey) {
+      return NextResponse.json(
+        { error: 'Missing required Upstox credentials (API Key or Secret Key)' },
+        { status: 400 }
+      );
+    }
+
+    // Generate a random state to prevent CSRF attacks
+    const state = Math.random().toString(36).substring(2);
     
-    // Create state parameter to verify the callback
-    const state = crypto.randomUUID();
-    
-    // Store state in cookies for validation during callback
-    const cookieStore = await cookies();
-    cookieStore.set('upstox_oauth_state', state, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      maxAge: 60 * 10, // 10 minutes
-      path: '/',
+    // Store the state in the broker record for verification later
+    const { error: updateError } = await supabase
+      .from('broker_credentials')
+      .update({ 
+        auth_state: state,
+        is_pending_auth: true
+      })
+      .eq('id', broker_id);
+
+    if (updateError) {
+      throw updateError;
+    }
+
+    // Generate the OAuth URL
+    const queryParams = new URLSearchParams({
+      client_id: apiKey,
+      redirect_uri: UPSTOX_REDIRECT_URI,
+      response_type: 'code',
+      state: state
     });
-    
-    // Construct the authorization URL
-    const authUrl = new URL('https://api.upstox.com/v2/login/authorization/dialog');
-    authUrl.searchParams.append('client_id', clientId);
-    authUrl.searchParams.append('redirect_uri', redirectUri);
-    authUrl.searchParams.append('response_type', 'code');
-    authUrl.searchParams.append('state', state);
-    
-    // Redirect to the Upstox authorization URL
-    return NextResponse.redirect(authUrl.toString());
+
+    const redirectUrl = `${UPSTOX_LOGIN_URL}?${queryParams.toString()}`;
+
+    // Return the URL for the frontend to redirect to
+    return NextResponse.json({
+      success: true,
+      redirect_url: redirectUrl
+    });
   } catch (error: any) {
-    console.error('Upstox OAuth error:', error);
-    // Redirect to an error page
-    return NextResponse.redirect('/broker-auth?error=' + encodeURIComponent(error.message || 'Failed to initiate Upstox OAuth'));
+    return NextResponse.json(
+      { error: error.message || 'Failed to initiate Upstox OAuth flow' },
+      { status: 500 }
+    );
   }
 } 
