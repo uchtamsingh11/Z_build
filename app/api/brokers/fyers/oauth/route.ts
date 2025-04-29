@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 import * as fyersClient from '@/fyers_api_client';
+import crypto from 'crypto';
 
 // Environment variables (would normally be in .env)
 const FYERS_API_URL = process.env.FYERS_API_URL || 'https://api.fyers.in/api/v2';
@@ -55,35 +56,39 @@ export async function POST(request: Request) {
       );
     }
 
-    // Generate a random state to prevent CSRF attacks
-    const state = Math.random().toString(36).substring(2);
+    // Generate state for CSRF protection
+    const state = crypto.randomBytes(16).toString('hex');
+    console.log(`[Fyers OAuth] Generated state: ${state}`);
     
     // Store the state in the broker record for verification later
     const { error: updateError } = await supabase
       .from('broker_credentials')
       .update({ 
         auth_state: state,
-        is_pending_auth: true
+        is_pending_auth: true,
+        updated_at: new Date().toISOString() // Update timestamp to track the pending auth
       })
       .eq('id', broker_id);
 
     if (updateError) {
+      console.error('[Fyers OAuth] Error updating broker with state:', updateError);
       throw updateError;
     }
 
-    // Generate the OAuth URL - Fyers uses appType parameter
-    const redirectUrl = fyersClient.generateAuthCodeURL(clientId, FYERS_APP_TYPE, FYERS_REDIRECT_URI);
+    // Generate the OAuth URL using the client's generateAuthCodeURL function
+    // This now handles encoding and proper parameter formatting
+    const redirectUrl = fyersClient.generateAuthCodeURL(clientId, FYERS_APP_TYPE, FYERS_REDIRECT_URI, state);
     
-    console.log('Generated Fyers OAuth URL:', redirectUrl);
+    console.log('[Fyers OAuth] Generated redirect URL:', redirectUrl);
 
     // Return the URL for the frontend to redirect to
     return NextResponse.json({
       success: true,
       redirect_url: redirectUrl,
-      state: state // Include state so frontend can verify
+      state: state
     });
   } catch (error: any) {
-    console.error('Failed to initiate Fyers OAuth flow:', error);
+    console.error('[Fyers OAuth] Error:', error);
     
     return NextResponse.json(
       { error: error.message || 'Failed to initiate Fyers OAuth flow' },

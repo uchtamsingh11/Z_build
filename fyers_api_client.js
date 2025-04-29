@@ -68,21 +68,34 @@ function initializeFyersClient(accessToken) {
  * @param {string} clientId - The Fyers APP ID
  * @param {string} appType - Type of app (usually "100" for API)
  * @param {string} redirectUri - Callback URL after authentication
+ * @param {string} state - State parameter for CSRF protection
  * @returns {string} - The URL to redirect user for authentication
  */
-function generateAuthCodeURL(clientId, appType, redirectUri) {
-    // Generate a random state to prevent CSRF attacks
-    const state = crypto.randomBytes(16).toString('hex');
+function generateAuthCodeURL(clientId, appType, redirectUri, state) {
+    // If state is not provided, generate a random one
+    if (!state) {
+        state = crypto.randomBytes(16).toString('hex');
+    }
     
-    const authParams = new URLSearchParams({
-        client_id: clientId,
-        redirect_uri: redirectUri,
-        response_type: 'code',
-        state: state,
-        app_id: `${clientId}-${appType}`
+    // For Fyers, the app_id must be exactly as registered in their developer portal
+    // Just pass the clientId directly (it already includes the app type in their format)
+    const appId = clientId;
+    
+    // Build the encoded redirect URI
+    const encodedRedirectUri = encodeURIComponent(redirectUri);
+    
+    // Build the URL with necessary parameters
+    const authUrl = `https://api.fyers.in/api/v2/generate-authcode?client_id=${appId}&redirect_uri=${encodedRedirectUri}&response_type=code&state=${state}`;
+    
+    // Log for debugging
+    console.log('Generated Fyers auth URL with params:', {
+        clientId,
+        appId,
+        redirectUri,
+        state: state.substring(0, 8) + '...'
     });
     
-    return `https://api.fyers.in/api/v2/generate-authcode?${authParams.toString()}`;
+    return authUrl;
 }
 
 /**
