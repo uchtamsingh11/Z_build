@@ -121,34 +121,55 @@ export async function GET(request: Request) {
     
     // Exchange the authorization code for an access token
     try {
-      console.log('Exchanging auth code for token with:', { clientId, code: code?.substring(0, 5) + '...' });
+      console.log('Exchanging auth code for token with:', { 
+        clientId, 
+        code: code?.substring(0, 5) + '...',
+        redirect_uri: FYERS_REDIRECT_URI
+      });
       
       const tokenData = await fyersClient.generateAccessToken(code, clientId, secretKey, FYERS_REDIRECT_URI);
       
       // Log token data for debugging (remove in production)
-      console.log('Token received:', tokenData.access_token ? 'Token received successfully' : 'No token received');
+      console.log('Token response object keys:', Object.keys(tokenData));
       
-      if (!tokenData.access_token) {
+      // Extract access token - handle different response formats
+      let accessToken;
+      if (tokenData.access_token) {
+        accessToken = tokenData.access_token;
+      } else if (tokenData.data && tokenData.data.access_token) {
+        accessToken = tokenData.data.access_token;
+      } else {
+        console.error('Token response data:', JSON.stringify(tokenData));
+        throw new Error('No access token found in Fyers response');
+      }
+      
+      console.log('Token received:', accessToken ? 'Token received successfully' : 'No token received');
+      
+      if (!accessToken) {
+        console.error('Token response data:', JSON.stringify(tokenData));
         throw new Error('No access token received from Fyers');
       }
       
       // Update the broker credentials with the tokens
       const updatedCredentials = {
         ...broker.credentials,
-        'Access Token': tokenData.access_token,
+        'Access Token': accessToken,
         'Token Type': tokenData.token_type || 'bearer',
         'Expires In': tokenData.expires_in || '86400', // Default to 1 day if not provided
       };
+      
+      console.log('Updating broker record with token, id:', broker.id);
       
       // Save the updated credentials and mark the broker as active
       const { error: updateError } = await supabase
         .from('broker_credentials')
         .update({
           credentials: updatedCredentials,
-          access_token: tokenData.access_token, // Store in dedicated column
+          access_token: accessToken, // Store in dedicated column
           is_active: true,
           is_pending_auth: false,
           auth_state: null,
+          updated_at: new Date().toISOString() // Ensure updated_at is set
         })
         .eq('id', broker.id);
         

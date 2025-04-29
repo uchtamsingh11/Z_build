@@ -128,19 +128,45 @@ async function generateAccessToken(authCode, clientId, secretKey, redirectUri) {
         }));
         
         const response = await axios.post(
-            'https://api.fyers.in/api/v2/validate-authcode',
+            'https://api.fyers.in/api/v2/token', // Updated endpoint from validate-authcode to token
             requestData,
             {
                 headers: { 'Content-Type': 'application/json' }
             }
         );
         
-        if (response.data && response.data.access_token) {
-            console.log('Access token generated successfully');
-            return response.data;
+        console.log('Token response structure:', {
+            status: response.status,
+            hasData: !!response.data,
+            dataType: typeof response.data,
+            dataKeys: response.data ? Object.keys(response.data) : []
+        });
+        
+        // Handle different response formats from Fyers API
+        if (response.data) {
+            // Format 1: Direct access_token in response
+            if (response.data.access_token) {
+                console.log('Access token found directly in response');
+                return response.data;
+            }
+            
+            // Format 2: Nested inside 'data' property
+            if (response.data.data && response.data.data.access_token) {
+                console.log('Access token found in data.data');
+                return response.data.data;
+            }
+            
+            // Format 3: Inside a success response with data
+            if (response.data.s === 'ok' && response.data.data && response.data.data.access_token) {
+                console.log('Access token found in success response');
+                return response.data.data;
+            }
+            
+            console.error('Could not find access_token in response:', JSON.stringify(response.data));
+            throw new Error('Invalid token response format from Fyers');
         } else {
-            console.error('Token response did not contain access_token:', response.data);
-            throw new Error('Invalid token response from Fyers');
+            console.error('Empty response from Fyers token endpoint');
+            throw new Error('Empty response from Fyers');
         }
     } catch (error) {
         console.error('Error generating access token:', error.response ? error.response.data : error);
