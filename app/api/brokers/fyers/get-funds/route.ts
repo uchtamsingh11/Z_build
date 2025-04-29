@@ -1,10 +1,13 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
-import * as fyersClient from '@/fyers_api_client';
 
-export async function GET(request: Request) {
+// Environment variables (would normally be in .env)
+const FYERS_API_URL = process.env.FYERS_API_URL || 'https://api-t1.fyers.in/api/v3';
+
+export async function POST(request: Request) {
   try {
     const supabase = await createClient();
+    const { broker_id } = await request.json();
     
     // Check if user is authenticated
     const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -16,24 +19,31 @@ export async function GET(request: Request) {
       );
     }
 
-    // Find the active Fyers broker for this user
+    // Check if broker exists and belongs to the user
     const { data: broker, error: brokerError } = await supabase
       .from('broker_credentials')
       .select('*')
+      .eq('id', broker_id)
       .eq('user_id', user.id)
-      .eq('broker_name', 'Fyers')
-      .eq('is_active', true)
       .single();
 
     if (brokerError || !broker) {
       return NextResponse.json(
-        { error: 'No active Fyers broker found' },
+        { error: 'Broker not found' },
         { status: 404 }
       );
     }
 
+    // Ensure this is a Fyers broker
+    if (broker.broker_name !== 'Fyers') {
+      return NextResponse.json(
+        { error: 'Not a Fyers broker' },
+        { status: 400 }
+      );
+    }
+
     // Extract the access token
-    const { 'Access Token': accessToken } = broker.credentials;
+    const accessToken = broker.access_token || broker.credentials['Access Token'];
     
     if (!accessToken) {
       return NextResponse.json(
@@ -42,79 +52,49 @@ export async function GET(request: Request) {
       );
     }
 
-    // Get funds information
-    try {
-      const fundsResponse = await fyersClient.getFundDetails(accessToken);
-      
-      // Check if the request was successful
-      if (fundsResponse && fundsResponse.code === 200) {
-        // Return the funds data
-        return NextResponse.json({
-          success: true,
-          funds: fundsResponse.data || {},
-          message: fundsResponse.message || 'Funds retrieved successfully'
-        });
-      } else {
-        // Request failed
-        return NextResponse.json(
-          { 
-            success: false,
-            error: fundsResponse.message || 'Failed to retrieve funds',
-            code: fundsResponse.code
-          },
-          { status: 400 }
-        );
+    // Request funds information from Fyers API
+    const fundsResponse = await fetch(`${FYERS_API_URL}/funds`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json'
       }
-    } catch (apiError: any) {
-      // Check if the error is due to an expired token
-      const errorMessage = apiError.response?.data?.message || apiError.message;
-      const errorCode = apiError.response?.data?.code;
-      
-      if (errorCode === 401 || /expired|invalid token|unauthorized/i.test(errorMessage)) {
-        // Mark the broker as inactive due to token expiration
-        const { error: updateError } = await supabase
+    });
+
+    if (!fundsResponse.ok) {
+      // Check if it's a token-related error
+      if (fundsResponse.status === 401 || fundsResponse.status === 403) {
+        // Token might be expired or invalid
+        await supabase
           .from('broker_credentials')
-          .update({ 
-            is_active: false,
-            access_token: null,
-            credentials: {
-              ...broker.credentials,
-              'Access Token': null
-            }
-          })
-          .eq('id', broker.id);
+          .update({ is_active: false })
+          .eq('id', broker_id);
           
-        if (updateError) {
-          console.error('Error updating broker status:', updateError);
-        }
-        
         return NextResponse.json(
-          { 
-            success: false,
-            error: 'Token expired. Please re-authenticate your Fyers broker.',
-            requires_reauth: true
-          },
+          { error: 'Authentication failed with Fyers API. Please reactivate your broker.' },
           { status: 401 }
         );
       }
       
-      // Handle other API errors
+      // Other API error
+      const errorData = await fundsResponse.json();
       return NextResponse.json(
-        { 
-          success: false,
-          error: 'Failed to retrieve funds from Fyers API',
-          details: errorMessage || 'Unknown error',
-          code: errorCode
-        },
-        { status: 500 }
+        { error: `Fyers API error: ${errorData.message || 'Unknown error'}` },
+        { status: fundsResponse.status || 500 }
       );
     }
+
+    // Parse the funds data
+    const fundsData = await fundsResponse.json();
+    
+    // Return the funds data
+    return NextResponse.json({
+      success: true,
+      data: fundsData
+    });
   } catch (error: any) {
     return NextResponse.json(
-      { 
-        success: false,
-        error: error.message || 'Failed to retrieve funds'
-      },
+      { error: error.message || 'Failed to fetch funds from Fyers' },
       { status: 500 }
     );
   }

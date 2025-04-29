@@ -1,21 +1,20 @@
 // =========================================================
-// FYERS API CLIENT - NODE.JS/JAVASCRIPT
+// FYERS API CLIENT - NODE.JS/JAVASCRIPT (v3)
 // =========================================================
 
 const axios = require('axios');
-const crypto = require('crypto');
 const WebSocket = require('ws');
 
 /**
  * Fyers API Documentation Reference:
- * https://api-docs.fyers.in/
+ * https://myapi.fyers.in/docsv3
  * 
  * PRODUCT TYPES:
  * - "INTRADAY": Intraday positions (automatically squared off at end of day)
- * - "CNC": Cash and Carry (delivery-based equity trading)
+ * - "CNC": Cash and Carry (Delivery)
  * - "MARGIN": Margin Trading
  * - "CO": Cover Order - High leverage order with compulsory stop-loss
- * - "BO": Bracket Order - With target and stop loss
+ * - "BO": Bracket Order - Has target and stop-loss
  * 
  * ORDER TYPES:
  * - "MARKET": Execute at best available market price, no price required
@@ -24,18 +23,18 @@ const WebSocket = require('ws');
  * - "SL-M": Stop Loss Market - Triggers at stop price, then places a market order
  * 
  * TRANSACTION TYPES:
- * - "1": To buy/purchase securities
- * - "2": To sell securities
+ * - "BUY": To buy/purchase securities
+ * - "SELL": To sell securities
  * 
  * VALIDITY TYPES:
  * - "DAY": Valid for the current trading day until market close
  * - "IOC": Immediate or Cancel - Executes immediately (fully/partially) or gets cancelled
- * - "GTD": Good Till Date - Valid for a specified number of days
  */
 
 // Constants
-const FYERS_API_URL = 'https://api.fyers.in/api/v2';
-const FYERS_DATA_API_URL = 'https://api.fyers.in/data-rest/v2';
+const FYERS_API_URL = 'https://api-t1.fyers.in/api/v3';
+const FYERS_AUTH_URL = 'https://api.fyers.in/api/v2/token';
+const FYERS_GENERATE_AUTH_CODE_URL = 'https://api.fyers.in/api/v2/generate-authcode';
 
 // Initialize the Fyers client
 function initializeFyersClient(accessToken) {
@@ -47,129 +46,49 @@ function initializeFyersClient(accessToken) {
                 'Authorization': `Bearer ${accessToken}`
             }
         }),
-        dataAxiosInstance: axios.create({
-            baseURL: FYERS_DATA_API_URL,
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${accessToken}`
-            }
-        }),
         accessToken
     };
 }
 
 // =========================================================
-// 📦 AUTHENTICATION
+// 📦 AUTHENTICATION FLOWS
 // =========================================================
 
 /**
- * Generate auth code to get access token
+ * Get auth code URL for user login
  * 
- * @param {string} clientId - The Fyers APP ID
- * @param {string} appType - Type of app (usually "100" for API)
- * @param {string} redirectUri - Callback URL after authentication
- * @param {string} state - State parameter for CSRF protection
- * @returns {string} - The URL to redirect user for authentication
+ * @param {string} clientId - App ID
+ * @param {string} redirectUri - Redirect URI
+ * @param {string} state - Random state for CSRF protection
+ * @returns {string} - Auth code URL
  */
-function generateAuthCodeURL(clientId, appType, redirectUri, state) {
-    // If state is not provided, generate a random one
-    if (!state) {
-        state = crypto.randomBytes(16).toString('hex');
-    }
-    
-    // For Fyers, the app_id must be exactly as registered in their developer portal
-    // Just pass the clientId directly (it already includes the app type in their format)
-    const appId = clientId;
-    
-    // Build the encoded redirect URI
-    const encodedRedirectUri = encodeURIComponent(redirectUri);
-    
-    // Build the URL with necessary parameters
-    const authUrl = `https://api.fyers.in/api/v2/generate-authcode?client_id=${appId}&redirect_uri=${encodedRedirectUri}&response_type=code&state=${state}`;
-    
-    // Log for debugging
-    console.log('Generated Fyers auth URL with params:', {
-        clientId,
-        appId,
-        redirectUri,
-        state: state.substring(0, 8) + '...'
-    });
-    
-    return authUrl;
+function getAuthCodeUrl(clientId, redirectUri, state = 'sample_state') {
+    return `https://api.fyers.in/api/v2/generate-authcode?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=code&state=${state}`;
 }
 
 /**
  * Exchange auth code for access token
  * 
- * @param {string} authCode - Authorization code received from redirect
- * @param {string} clientId - The Fyers APP ID
- * @param {string} secretKey - The Fyers Secret Key
- * @param {string} redirectUri - The same redirect URI used in auth request
- * @returns {Promise} - Token generation response
+ * @param {string} authCode - Auth code from redirect
+ * @param {string} clientId - App ID 
+ * @param {string} secretKey - Secret key
+ * @param {string} redirectUri - Redirect URI
+ * @returns {Promise} - Access token response
  */
-async function generateAccessToken(authCode, clientId, secretKey, redirectUri) {
+async function getAccessToken(authCode, clientId, secretKey, redirectUri) {
     try {
-        // Generate the hash required by Fyers
-        const appIdHash = crypto.createHash('sha256')
-            .update(`${authCode}:${secretKey}`)
-            .digest('hex');
-            
-        const requestData = {
+        const response = await axios.post(FYERS_AUTH_URL, {
             grant_type: 'authorization_code',
-            appIdHash: appIdHash,
             code: authCode,
             client_id: clientId,
+            client_secret: secretKey,
             redirect_uri: redirectUri
-        };
-        
-        console.log('Sending token request with data:', JSON.stringify({
-            ...requestData,
-            appIdHash: '******' // Mask the hash for security
-        }));
-        
-        const response = await axios.post(
-            'https://api.fyers.in/api/v2/token', // Updated endpoint from validate-authcode to token
-            requestData,
-            {
-                headers: { 'Content-Type': 'application/json' }
-            }
-        );
-        
-        console.log('Token response structure:', {
-            status: response.status,
-            hasData: !!response.data,
-            dataType: typeof response.data,
-            dataKeys: response.data ? Object.keys(response.data) : []
         });
         
-        // Handle different response formats from Fyers API
-        if (response.data) {
-            // Format 1: Direct access_token in response
-            if (response.data.access_token) {
-                console.log('Access token found directly in response');
-                return response.data;
-            }
-            
-            // Format 2: Nested inside 'data' property
-            if (response.data.data && response.data.data.access_token) {
-                console.log('Access token found in data.data');
-                return response.data.data;
-            }
-            
-            // Format 3: Inside a success response with data
-            if (response.data.s === 'ok' && response.data.data && response.data.data.access_token) {
-                console.log('Access token found in success response');
-                return response.data.data;
-            }
-            
-            console.error('Could not find access_token in response:', JSON.stringify(response.data));
-            throw new Error('Invalid token response format from Fyers');
-        } else {
-            console.error('Empty response from Fyers token endpoint');
-            throw new Error('Empty response from Fyers');
-        }
+        console.log('Access token fetched successfully');
+        return response.data;
     } catch (error) {
-        console.error('Error generating access token:', error.response ? error.response.data : error);
+        console.error('Error fetching access token:', error.response ? error.response.data : error);
         throw error;
     }
 }
@@ -189,7 +108,7 @@ async function getUserProfile(accessToken) {
     
     try {
         const response = await client.axiosInstance.get('/profile');
-        console.log('User profile fetched successfully');
+        console.log('User profile fetched successfully:', response.data);
         return response.data;
     } catch (error) {
         console.error('Error fetching user profile:', error.response ? error.response.data : error);
@@ -208,7 +127,7 @@ async function getFundDetails(accessToken) {
     
     try {
         const response = await client.axiosInstance.get('/funds');
-        console.log('Fund details fetched successfully');
+        console.log('Fund details fetched successfully:', response.data);
         return response.data;
     } catch (error) {
         console.error('Error fetching fund details:', error.response ? error.response.data : error);
@@ -224,36 +143,24 @@ async function getFundDetails(accessToken) {
  * Place a market order
  * 
  * @param {string} accessToken - Authentication token
- * @param {string} symbol - Symbol of the instrument
+ * @param {string} symbol - Symbol for the instrument
  * @param {number} quantity - Number of shares/units to trade
- * @param {string} transactionType - "1" for BUY or "2" for SELL
+ * @param {string} transactionType - "BUY" or "SELL"
  * @param {string} productType - Product type: "INTRADAY", "CNC", etc.
  * @returns {Promise} - Order placement response
  */
 async function placeMarketOrder(accessToken, symbol, quantity, transactionType, productType) {
     const client = initializeFyersClient(accessToken);
-
-    // Map product type to Fyers values
-    const productTypeMap = {
-        'INTRADAY': 'INTRADAY',
-        'DELIVERY': 'CNC',
-        'CNC': 'CNC',
-        'MARGIN': 'MARGIN',
-        'CO': 'CO',
-        'BO': 'BO'
-    };
     
     const orderData = {
         symbol: symbol,
         qty: quantity,
-        type: 2, // 2 = Market, 1 = Limit
-        side: transactionType, // 1 = Buy, 2 = Sell
-        productType: productTypeMap[productType] || productType,
-        validity: 'DAY',
-        discloseQty: 0,
-        limitPrice: 0,
-        stopPrice: 0,
-        offlineOrder: false
+        type: productType,
+        side: transactionType,
+        order_type: "MARKET",
+        validity: "DAY",
+        disc_qty: 0,
+        offline_order: false
     };
 
     try {
@@ -270,37 +177,26 @@ async function placeMarketOrder(accessToken, symbol, quantity, transactionType, 
  * Place a limit order
  * 
  * @param {string} accessToken - Authentication token
- * @param {string} symbol - Symbol of the instrument
+ * @param {string} symbol - Symbol for the instrument
  * @param {number} quantity - Number of shares/units to trade
  * @param {number} price - Specific price at which to execute the order
- * @param {string} transactionType - "1" for BUY or "2" for SELL
+ * @param {string} transactionType - "BUY" or "SELL"
  * @param {string} productType - Product type: "INTRADAY", "CNC", etc.
  * @returns {Promise} - Order placement response
  */
 async function placeLimitOrder(accessToken, symbol, quantity, price, transactionType, productType) {
     const client = initializeFyersClient(accessToken);
     
-    // Map product type to Fyers values
-    const productTypeMap = {
-        'INTRADAY': 'INTRADAY',
-        'DELIVERY': 'CNC',
-        'CNC': 'CNC',
-        'MARGIN': 'MARGIN',
-        'CO': 'CO',
-        'BO': 'BO'
-    };
-    
     const orderData = {
         symbol: symbol,
         qty: quantity,
-        type: 1, // 1 = Limit
-        side: transactionType, // 1 = Buy, 2 = Sell
-        productType: productTypeMap[productType] || productType,
-        validity: 'DAY',
-        discloseQty: 0,
-        limitPrice: price,
-        stopPrice: 0,
-        offlineOrder: false
+        price: price,
+        type: productType,
+        side: transactionType,
+        order_type: "LIMIT",
+        validity: "DAY",
+        disc_qty: 0,
+        offline_order: false
     };
 
     try {
@@ -317,37 +213,26 @@ async function placeLimitOrder(accessToken, symbol, quantity, price, transaction
  * Place a stop-loss market order
  * 
  * @param {string} accessToken - Authentication token
- * @param {string} symbol - Symbol of the instrument
+ * @param {string} symbol - Symbol for the instrument
  * @param {number} quantity - Number of shares/units to trade
  * @param {number} triggerPrice - Price at which the stop-loss gets triggered
- * @param {string} transactionType - "1" for BUY or "2" for SELL
+ * @param {string} transactionType - "BUY" or "SELL"
  * @param {string} productType - Product type: "INTRADAY", "CNC", etc.
  * @returns {Promise} - Order placement response
  */
 async function placeStopLossMarketOrder(accessToken, symbol, quantity, triggerPrice, transactionType, productType) {
     const client = initializeFyersClient(accessToken);
     
-    // Map product type to Fyers values
-    const productTypeMap = {
-        'INTRADAY': 'INTRADAY',
-        'DELIVERY': 'CNC',
-        'CNC': 'CNC',
-        'MARGIN': 'MARGIN',
-        'CO': 'CO',
-        'BO': 'BO'
-    };
-    
     const orderData = {
         symbol: symbol,
         qty: quantity,
-        type: 4, // 4 = SL-M (Stop Loss Market)
-        side: transactionType, // 1 = Buy, 2 = Sell
-        productType: productTypeMap[productType] || productType,
-        validity: 'DAY',
-        discloseQty: 0,
-        limitPrice: 0,
-        stopPrice: triggerPrice,
-        offlineOrder: false
+        type: productType,
+        side: transactionType,
+        order_type: "SL-M",
+        validity: "DAY",
+        disc_qty: 0,
+        stop_price: triggerPrice,
+        offline_order: false
     };
 
     try {
@@ -361,76 +246,30 @@ async function placeStopLossMarketOrder(accessToken, symbol, quantity, triggerPr
 }
 
 /**
- * Place a stop-loss limit order
- * 
- * @param {string} accessToken - Authentication token
- * @param {string} symbol - Symbol of the instrument
- * @param {number} quantity - Number of shares/units to trade
- * @param {number} price - Limit price for the order
- * @param {number} triggerPrice - Price at which the stop-loss gets triggered
- * @param {string} transactionType - "1" for BUY or "2" for SELL
- * @param {string} productType - Product type: "INTRADAY", "CNC", etc.
- * @returns {Promise} - Order placement response
- */
-async function placeStopLossLimitOrder(accessToken, symbol, quantity, price, triggerPrice, transactionType, productType) {
-    const client = initializeFyersClient(accessToken);
-    
-    // Map product type to Fyers values
-    const productTypeMap = {
-        'INTRADAY': 'INTRADAY',
-        'DELIVERY': 'CNC',
-        'CNC': 'CNC',
-        'MARGIN': 'MARGIN',
-        'CO': 'CO',
-        'BO': 'BO'
-    };
-    
-    const orderData = {
-        symbol: symbol,
-        qty: quantity,
-        type: 3, // 3 = SL (Stop Loss Limit)
-        side: transactionType, // 1 = Buy, 2 = Sell
-        productType: productTypeMap[productType] || productType,
-        validity: 'DAY',
-        discloseQty: 0,
-        limitPrice: price,
-        stopPrice: triggerPrice,
-        offlineOrder: false
-    };
-
-    try {
-        const response = await client.axiosInstance.post('/orders', orderData);
-        console.log('Stop-loss limit order placed successfully:', response.data);
-        return response.data;
-    } catch (error) {
-        console.error('Error placing stop-loss limit order:', error.response ? error.response.data : error);
-        throw error;
-    }
-}
-
-/**
  * Modify an existing order
  * 
  * @param {string} accessToken - Authentication token
  * @param {string} orderId - ID of the order to modify
  * @param {number} quantity - New quantity (optional)
- * @param {number} price - New price for limit orders (optional)
- * @param {number} triggerPrice - New trigger price for stop orders (optional)
+ * @param {number} price - New price (optional)
+ * @param {number} triggerPrice - New trigger price (optional)
  * @returns {Promise} - Order modification response
  */
 async function modifyOrder(accessToken, orderId, quantity = null, price = null, triggerPrice = null) {
     const client = initializeFyersClient(accessToken);
     
-    const modifyData = {
+    // Prepare update data object
+    const updateData = {
         id: orderId
     };
-
-    if (quantity !== null) modifyData.qty = quantity;
-    if (price !== null) modifyData.limitPrice = price;
-    if (triggerPrice !== null) modifyData.stopPrice = triggerPrice;
+    
+    // Add optional parameters if provided
+    if (quantity !== null) updateData.qty = quantity;
+    if (price !== null) updateData.price = price;
+    if (triggerPrice !== null) updateData.stop_price = triggerPrice;
 
     try {
-        const response = await client.axiosInstance.put('/orders', modifyData);
+        const response = await client.axiosInstance.put('/orders', updateData);
         console.log('Order modified successfully:', response.data);
         return response.data;
     } catch (error) {
@@ -460,7 +299,7 @@ async function cancelOrder(accessToken, orderId) {
 }
 
 /**
- * Get details of a specific order
+ * Get order details by ID
  * 
  * @param {string} accessToken - Authentication token
  * @param {string} orderId - ID of the order
@@ -470,8 +309,8 @@ async function getOrderDetails(accessToken, orderId) {
     const client = initializeFyersClient(accessToken);
     
     try {
-        const response = await client.axiosInstance.get(`/orders?id=${orderId}`);
-        console.log('Order details fetched successfully');
+        const response = await client.axiosInstance.get(`/orders/${orderId}`);
+        console.log('Order details fetched successfully:', response.data);
         return response.data;
     } catch (error) {
         console.error('Error fetching order details:', error.response ? error.response.data : error);
@@ -480,7 +319,7 @@ async function getOrderDetails(accessToken, orderId) {
 }
 
 /**
- * Get order book (list of all orders)
+ * Get order book (all orders)
  * 
  * @param {string} accessToken - Authentication token
  * @returns {Promise} - Order book response
@@ -490,7 +329,7 @@ async function getOrderBook(accessToken) {
     
     try {
         const response = await client.axiosInstance.get('/orders');
-        console.log('Order book fetched successfully');
+        console.log('Order book fetched successfully:', response.data);
         return response.data;
     } catch (error) {
         console.error('Error fetching order book:', error.response ? error.response.data : error);
@@ -499,7 +338,7 @@ async function getOrderBook(accessToken) {
 }
 
 /**
- * Get trade book (list of executed trades)
+ * Get trade book (executed trades)
  * 
  * @param {string} accessToken - Authentication token
  * @returns {Promise} - Trade book response
@@ -509,13 +348,17 @@ async function getTradeBook(accessToken) {
     
     try {
         const response = await client.axiosInstance.get('/trades');
-        console.log('Trade book fetched successfully');
+        console.log('Trade book fetched successfully:', response.data);
         return response.data;
     } catch (error) {
         console.error('Error fetching trade book:', error.response ? error.response.data : error);
         throw error;
     }
 }
+
+// =========================================================
+// 📦 POSITIONS AND HOLDINGS
+// =========================================================
 
 /**
  * Get current positions
@@ -528,7 +371,7 @@ async function getPositions(accessToken) {
     
     try {
         const response = await client.axiosInstance.get('/positions');
-        console.log('Positions fetched successfully');
+        console.log('Positions fetched successfully:', response.data);
         return response.data;
     } catch (error) {
         console.error('Error fetching positions:', error.response ? error.response.data : error);
@@ -537,7 +380,7 @@ async function getPositions(accessToken) {
 }
 
 /**
- * Get holdings (long-term investments)
+ * Get holdings
  * 
  * @param {string} accessToken - Authentication token
  * @returns {Promise} - Holdings response
@@ -547,7 +390,7 @@ async function getHoldings(accessToken) {
     
     try {
         const response = await client.axiosInstance.get('/holdings');
-        console.log('Holdings fetched successfully');
+        console.log('Holdings fetched successfully:', response.data);
         return response.data;
     } catch (error) {
         console.error('Error fetching holdings:', error.response ? error.response.data : error);
@@ -555,11 +398,15 @@ async function getHoldings(accessToken) {
     }
 }
 
+// =========================================================
+// 📦 MARKET DATA
+// =========================================================
+
 /**
  * Get market quotes for instruments
  * 
  * @param {string} accessToken - Authentication token
- * @param {Array<string>} symbols - Array of symbols to get quotes for
+ * @param {Array} symbols - Array of symbols to get quotes for
  * @returns {Promise} - Market quotes response
  */
 async function getMarketQuotes(accessToken, symbols) {
@@ -571,7 +418,7 @@ async function getMarketQuotes(accessToken, symbols) {
                 symbols: symbols.join(',')
             }
         });
-        console.log('Market quotes fetched successfully');
+        console.log('Market quotes fetched successfully:', response.data);
         return response.data;
     } catch (error) {
         console.error('Error fetching market quotes:', error.response ? error.response.data : error);
@@ -580,30 +427,28 @@ async function getMarketQuotes(accessToken, symbols) {
 }
 
 /**
- * Get historical data for an instrument
+ * Get historical data
  * 
  * @param {string} accessToken - Authentication token
- * @param {string} symbol - Symbol of the instrument
- * @param {string} resolution - Timeframe: "1", "5", "15", "30", "60", "D", "W", "M"
- * @param {string|number} from - Start date in epoch timestamp
- * @param {string|number} to - End date in epoch timestamp
+ * @param {string} symbol - Symbol for which to get historical data
+ * @param {string} resolution - Timeframe resolution ('1', '5', '15', '30', 'D', 'W', 'M')
+ * @param {string} from - From date-time in epoch format
+ * @param {string} to - To date-time in epoch format
  * @returns {Promise} - Historical data response
  */
 async function getHistoricalData(accessToken, symbol, resolution, from, to) {
     const client = initializeFyersClient(accessToken);
     
     try {
-        const response = await client.dataAxiosInstance.get('/history', {
+        const response = await client.axiosInstance.get('/historical-data', {
             params: {
-                symbol,
-                resolution,
-                date_format: '1',
-                range_from: from,
-                range_to: to,
-                cont_flag: '1'
+                symbol: symbol,
+                resolution: resolution,
+                from: from,
+                to: to
             }
         });
-        console.log('Historical data fetched successfully');
+        console.log('Historical data fetched successfully:', response.data);
         return response.data;
     } catch (error) {
         console.error('Error fetching historical data:', error.response ? error.response.data : error);
@@ -611,23 +456,51 @@ async function getHistoricalData(accessToken, symbol, resolution, from, to) {
     }
 }
 
-// Export all functions
+/**
+ * Get list of available instruments
+ * 
+ * @param {string} accessToken - Authentication token
+ * @returns {Promise} - Instruments response
+ */
+async function getInstruments(accessToken) {
+    const client = initializeFyersClient(accessToken);
+    
+    try {
+        const response = await client.axiosInstance.get('/instruments');
+        console.log('Instruments fetched successfully:', response.data);
+        return response.data;
+    } catch (error) {
+        console.error('Error fetching instruments:', error.response ? error.response.data : error);
+        throw error;
+    }
+}
+
+// Export functions
 module.exports = {
-    generateAuthCodeURL,
-    generateAccessToken,
+    // Authentication
+    getAuthCodeUrl,
+    getAccessToken,
+    
+    // User and Account
     getUserProfile,
     getFundDetails,
+    
+    // Order Management
     placeMarketOrder,
     placeLimitOrder,
     placeStopLossMarketOrder,
-    placeStopLossLimitOrder,
     modifyOrder,
     cancelOrder,
     getOrderDetails,
     getOrderBook,
     getTradeBook,
+    
+    // Positions and Holdings
     getPositions,
     getHoldings,
+    
+    // Market Data
     getMarketQuotes,
-    getHistoricalData
+    getHistoricalData,
+    getInstruments
 }; 

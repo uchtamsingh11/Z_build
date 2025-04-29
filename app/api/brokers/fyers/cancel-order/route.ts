@@ -1,21 +1,13 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
-import * as fyersClient from '@/fyers_api_client';
+
+// Environment variables (would normally be in .env)
+const FYERS_API_URL = process.env.FYERS_API_URL || 'https://api-t1.fyers.in/api/v3';
 
 export async function POST(request: Request) {
   try {
     const supabase = await createClient();
-    
-    // Parse the request body
-    const { order_id } = await request.json();
-    
-    // Validate required fields
-    if (!order_id) {
-      return NextResponse.json(
-        { error: 'Missing required order ID' },
-        { status: 400 }
-      );
-    }
+    const { broker_id, order_id } = await request.json();
     
     // Check if user is authenticated
     const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -27,24 +19,31 @@ export async function POST(request: Request) {
       );
     }
 
-    // Find the active Fyers broker for this user
+    // Check if broker exists and belongs to the user
     const { data: broker, error: brokerError } = await supabase
       .from('broker_credentials')
       .select('*')
+      .eq('id', broker_id)
       .eq('user_id', user.id)
-      .eq('broker_name', 'Fyers')
-      .eq('is_active', true)
       .single();
 
     if (brokerError || !broker) {
       return NextResponse.json(
-        { error: 'No active Fyers broker found' },
+        { error: 'Broker not found' },
         { status: 404 }
       );
     }
 
+    // Ensure this is a Fyers broker
+    if (broker.broker_name !== 'Fyers') {
+      return NextResponse.json(
+        { error: 'Not a Fyers broker' },
+        { status: 400 }
+      );
+    }
+
     // Extract the access token
-    const { 'Access Token': accessToken } = broker.credentials;
+    const accessToken = broker.access_token || broker.credentials['Access Token'];
     
     if (!accessToken) {
       return NextResponse.json(
@@ -53,79 +52,57 @@ export async function POST(request: Request) {
       );
     }
 
-    // Cancel the order
-    try {
-      const cancelResponse = await fyersClient.cancelOrder(accessToken, order_id);
-      
-      // Check if the cancellation was successful
-      if (cancelResponse && cancelResponse.code === 200) {
-        // Return the cancellation response
-        return NextResponse.json({
-          success: true,
-          message: cancelResponse.message || 'Order cancelled successfully',
-          data: cancelResponse.data
-        });
-      } else {
-        // Cancellation failed
-        return NextResponse.json(
-          { 
-            success: false,
-            error: cancelResponse.message || 'Failed to cancel order',
-            code: cancelResponse.code
-          },
-          { status: 400 }
-        );
+    // Validate required parameters
+    if (!order_id) {
+      return NextResponse.json(
+        { error: 'Missing order ID' },
+        { status: 400 }
+      );
+    }
+
+    // Cancel the order with Fyers API
+    const cancelResponse = await fetch(`${FYERS_API_URL}/orders/${order_id}`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json'
       }
-    } catch (apiError: any) {
-      // Check if the error is due to an expired token
-      const errorMessage = apiError.response?.data?.message || apiError.message;
-      const errorCode = apiError.response?.data?.code;
-      
-      if (errorCode === 401 || /expired|invalid token|unauthorized/i.test(errorMessage)) {
-        // Mark the broker as inactive due to token expiration
-        const { error: updateError } = await supabase
+    });
+
+    if (!cancelResponse.ok) {
+      // Check if it's a token-related error
+      if (cancelResponse.status === 401 || cancelResponse.status === 403) {
+        // Token might be expired or invalid
+        await supabase
           .from('broker_credentials')
-          .update({ 
-            is_active: false,
-            access_token: null,
-            credentials: {
-              ...broker.credentials,
-              'Access Token': null
-            }
-          })
-          .eq('id', broker.id);
+          .update({ is_active: false })
+          .eq('id', broker_id);
           
-        if (updateError) {
-          console.error('Error updating broker status:', updateError);
-        }
-        
         return NextResponse.json(
-          { 
-            success: false,
-            error: 'Token expired. Please re-authenticate your Fyers broker.',
-            requires_reauth: true
-          },
+          { error: 'Authentication failed with Fyers API. Please reactivate your broker.' },
           { status: 401 }
         );
       }
       
-      // Handle other API errors
+      // Other API error
+      const errorData = await cancelResponse.json();
       return NextResponse.json(
-        { 
-          success: false,
-          error: 'Failed to cancel order with Fyers API',
-          details: errorMessage || 'Unknown error',
-          code: errorCode
-        },
-        { status: 500 }
+        { error: `Fyers API error: ${errorData.message || 'Unknown error'}` },
+        { status: cancelResponse.status || 500 }
       );
     }
+
+    // Parse the cancel response
+    const cancelResponseData = await cancelResponse.json();
+    
+    // Return the cancel response
+    return NextResponse.json({
+      success: true,
+      data: cancelResponseData
+    });
   } catch (error: any) {
     return NextResponse.json(
-      { 
-        success: false,
-        error: error.message || 'Failed to cancel order'
-      },
+      { error: error.message || 'Failed to cancel order with Fyers' },
       { status: 500 }
     );
   }

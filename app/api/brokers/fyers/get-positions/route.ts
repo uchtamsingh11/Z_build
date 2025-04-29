@@ -1,10 +1,13 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
-import * as fyersClient from '@/fyers_api_client';
 
-export async function GET(request: Request) {
+// Environment variables (would normally be in .env)
+const FYERS_API_URL = process.env.FYERS_API_URL || 'https://api-t1.fyers.in/api/v3';
+
+export async function POST(request: Request) {
   try {
     const supabase = await createClient();
+    const { broker_id } = await request.json();
     
     // Check if user is authenticated
     const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -16,24 +19,31 @@ export async function GET(request: Request) {
       );
     }
 
-    // Find the active Fyers broker for this user
+    // Check if broker exists and belongs to the user
     const { data: broker, error: brokerError } = await supabase
       .from('broker_credentials')
       .select('*')
+      .eq('id', broker_id)
       .eq('user_id', user.id)
-      .eq('broker_name', 'Fyers')
-      .eq('is_active', true)
       .single();
 
     if (brokerError || !broker) {
       return NextResponse.json(
-        { error: 'No active Fyers broker found' },
+        { error: 'Broker not found' },
         { status: 404 }
       );
     }
 
+    // Ensure this is a Fyers broker
+    if (broker.broker_name !== 'Fyers') {
+      return NextResponse.json(
+        { error: 'Not a Fyers broker' },
+        { status: 400 }
+      );
+    }
+
     // Extract the access token
-    const { 'Access Token': accessToken } = broker.credentials;
+    const accessToken = broker.access_token || broker.credentials['Access Token'];
     
     if (!accessToken) {
       return NextResponse.json(
@@ -42,103 +52,79 @@ export async function GET(request: Request) {
       );
     }
 
-    // Get positions information
-    try {
-      const positionsResponse = await fyersClient.getPositions(accessToken);
-      
-      // Get holdings information as well
-      const holdingsResponse = await fyersClient.getHoldings(accessToken);
-      
-      // Check if both requests were successful
-      if (positionsResponse && positionsResponse.code === 200) {
-        // Combine positions and holdings
-        let allPositions = [];
-        
-        if (positionsResponse.data) {
-          allPositions = positionsResponse.data;
-        }
-        
-        // Add holdings data if available and successful
-        if (holdingsResponse && holdingsResponse.code === 200 && holdingsResponse.data) {
-          // Map holdings data to match the positions format if needed
-          const holdingsData = holdingsResponse.data;
-          
-          // Return the combined data
-          return NextResponse.json({
-            success: true,
-            positions: allPositions,
-            holdings: holdingsData,
-            message: 'Positions and holdings retrieved successfully'
-          });
-        }
-        
-        // Only positions data available
-        return NextResponse.json({
-          success: true,
-          positions: allPositions,
-          message: 'Positions retrieved successfully'
-        });
-      } else {
-        // Request failed
-        return NextResponse.json(
-          { 
-            success: false,
-            error: positionsResponse?.message || 'Failed to retrieve positions',
-            code: positionsResponse?.code
-          },
-          { status: 400 }
-        );
+    // Request positions from Fyers API
+    const positionsResponse = await fetch(`${FYERS_API_URL}/positions`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json'
       }
-    } catch (apiError: any) {
-      // Check if the error is due to an expired token
-      const errorMessage = apiError.response?.data?.message || apiError.message;
-      const errorCode = apiError.response?.data?.code;
-      
-      if (errorCode === 401 || /expired|invalid token|unauthorized/i.test(errorMessage)) {
-        // Mark the broker as inactive due to token expiration
-        const { error: updateError } = await supabase
+    });
+
+    if (!positionsResponse.ok) {
+      // Check if it's a token-related error
+      if (positionsResponse.status === 401 || positionsResponse.status === 403) {
+        // Token might be expired or invalid
+        await supabase
           .from('broker_credentials')
-          .update({ 
-            is_active: false,
-            access_token: null,
-            credentials: {
-              ...broker.credentials,
-              'Access Token': null
-            }
-          })
-          .eq('id', broker.id);
+          .update({ is_active: false })
+          .eq('id', broker_id);
           
-        if (updateError) {
-          console.error('Error updating broker status:', updateError);
-        }
-        
         return NextResponse.json(
-          { 
-            success: false,
-            error: 'Token expired. Please re-authenticate your Fyers broker.',
-            requires_reauth: true
-          },
+          { error: 'Authentication failed with Fyers API. Please reactivate your broker.' },
           { status: 401 }
         );
       }
       
-      // Handle other API errors
+      // Other API error
+      const errorData = await positionsResponse.json();
       return NextResponse.json(
-        { 
-          success: false,
-          error: 'Failed to retrieve positions from Fyers API',
-          details: errorMessage || 'Unknown error',
-          code: errorCode
-        },
-        { status: 500 }
+        { error: `Fyers API error: ${errorData.message || 'Unknown error'}` },
+        { status: positionsResponse.status || 500 }
       );
     }
+
+    // Parse the positions data
+    const positionsData = await positionsResponse.json();
+    
+    // Also fetch holdings if available
+    try {
+      const holdingsResponse = await fetch(`${FYERS_API_URL}/holdings`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (holdingsResponse.ok) {
+        const holdingsData = await holdingsResponse.json();
+        
+        // Return both positions and holdings
+        return NextResponse.json({
+          success: true,
+          data: {
+            positions: positionsData,
+            holdings: holdingsData
+          }
+        });
+      }
+    } catch (holdingsError) {
+      console.error('Error fetching holdings:', holdingsError);
+      // Continue with just positions if holdings fails
+    }
+    
+    // Return just positions if holdings weren't fetched
+    return NextResponse.json({
+      success: true,
+      data: {
+        positions: positionsData,
+        holdings: null
+      }
+    });
   } catch (error: any) {
     return NextResponse.json(
-      { 
-        success: false,
-        error: error.message || 'Failed to retrieve positions'
-      },
+      { error: error.message || 'Failed to fetch positions from Fyers' },
       { status: 500 }
     );
   }

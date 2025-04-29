@@ -39,16 +39,20 @@ export async function POST(request: Request) {
       );
     }
 
-    // Clear the access token and mark the broker as inactive
+    // Update the broker to be inactive and remove tokens
+    const updatedCredentials = {
+      ...broker.credentials,
+      'Access Token': null,
+      'Refresh Token': null
+    };
+    
     const { error: updateError } = await supabase
       .from('broker_credentials')
-      .update({ 
-        is_active: false,
+      .update({
+        credentials: updatedCredentials,
         access_token: null,
-        credentials: {
-          ...broker.credentials,
-          'Access Token': null
-        }
+        token_expiry: null,
+        is_active: false
       })
       .eq('id', broker_id);
 

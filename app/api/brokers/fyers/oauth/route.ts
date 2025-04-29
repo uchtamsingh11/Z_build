@@ -1,12 +1,10 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
-import * as fyersClient from '@/fyers_api_client';
-import crypto from 'crypto';
 
 // Environment variables (would normally be in .env)
-const FYERS_API_URL = process.env.FYERS_API_URL || 'https://api.fyers.in/api/v2';
+const FYERS_API_URL = process.env.FYERS_API_URL || 'https://api-t1.fyers.in/api/v3';
+const FYERS_AUTH_URL = process.env.FYERS_AUTH_URL || 'https://api.fyers.in/api/v2/generate-authcode';
 const FYERS_REDIRECT_URI = process.env.FYERS_REDIRECT_URI || 'https://www.algoz.tech/api/brokers/fyers/callback';
-const FYERS_APP_TYPE = process.env.FYERS_APP_TYPE || '100'; // Default to 100 for API application
 
 export async function POST(request: Request) {
   try {
@@ -47,49 +45,47 @@ export async function POST(request: Request) {
     }
 
     // Extract required credentials
-    const { 'client_id': clientId, 'secret_key': secretKey } = broker.credentials;
+    const { 'App ID': clientId, 'Secret Key': secretKey } = broker.credentials;
     
     if (!clientId || !secretKey) {
       return NextResponse.json(
-        { error: 'Missing required Fyers credentials (client_id or secret_key)' },
+        { error: 'Missing required Fyers credentials (App ID or Secret Key)' },
         { status: 400 }
       );
     }
 
-    // Generate state for CSRF protection
-    const state = crypto.randomBytes(16).toString('hex');
-    console.log(`[Fyers OAuth] Generated state: ${state}`);
+    // Generate a random state to prevent CSRF attacks
+    const state = Math.random().toString(36).substring(2);
     
     // Store the state in the broker record for verification later
     const { error: updateError } = await supabase
       .from('broker_credentials')
       .update({ 
         auth_state: state,
-        is_pending_auth: true,
-        updated_at: new Date().toISOString() // Update timestamp to track the pending auth
+        is_pending_auth: true
       })
       .eq('id', broker_id);
 
     if (updateError) {
-      console.error('[Fyers OAuth] Error updating broker with state:', updateError);
       throw updateError;
     }
 
-    // Generate the OAuth URL using the client's generateAuthCodeURL function
-    // This now handles encoding and proper parameter formatting
-    const redirectUrl = fyersClient.generateAuthCodeURL(clientId, FYERS_APP_TYPE, FYERS_REDIRECT_URI, state);
-    
-    console.log('[Fyers OAuth] Generated redirect URL:', redirectUrl);
+    // Generate the OAuth URL
+    const queryParams = new URLSearchParams({
+      client_id: clientId,
+      redirect_uri: FYERS_REDIRECT_URI,
+      response_type: 'code',
+      state: state
+    });
+
+    const redirectUrl = `${FYERS_AUTH_URL}?${queryParams.toString()}`;
 
     // Return the URL for the frontend to redirect to
     return NextResponse.json({
       success: true,
-      redirect_url: redirectUrl,
-      state: state
+      redirect_url: redirectUrl
     });
   } catch (error: any) {
-    console.error('[Fyers OAuth] Error:', error);
-    
     return NextResponse.json(
       { error: error.message || 'Failed to initiate Fyers OAuth flow' },
       { status: 500 }

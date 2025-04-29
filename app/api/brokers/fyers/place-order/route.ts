@@ -1,29 +1,22 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
-import * as fyersClient from '@/fyers_api_client';
+
+// Environment variables (would normally be in .env)
+const FYERS_API_URL = process.env.FYERS_API_URL || 'https://api-t1.fyers.in/api/v3';
 
 export async function POST(request: Request) {
   try {
     const supabase = await createClient();
-    
-    // Parse the request body
     const { 
-      symbol,
-      quantity,
-      price,
-      trigger_price,
-      transaction_type,
-      order_type,
-      product_type
+      broker_id, 
+      symbol, 
+      quantity, 
+      price, 
+      transactionType, 
+      productType,
+      orderType,
+      triggerPrice = 0
     } = await request.json();
-    
-    // Validate required fields
-    if (!symbol || !quantity || !transaction_type || !order_type || !product_type) {
-      return NextResponse.json(
-        { error: 'Missing required order parameters' },
-        { status: 400 }
-      );
-    }
     
     // Check if user is authenticated
     const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -35,24 +28,31 @@ export async function POST(request: Request) {
       );
     }
 
-    // Find the active Fyers broker for this user
+    // Check if broker exists and belongs to the user
     const { data: broker, error: brokerError } = await supabase
       .from('broker_credentials')
       .select('*')
+      .eq('id', broker_id)
       .eq('user_id', user.id)
-      .eq('broker_name', 'Fyers')
-      .eq('is_active', true)
       .single();
 
     if (brokerError || !broker) {
       return NextResponse.json(
-        { error: 'No active Fyers broker found' },
+        { error: 'Broker not found' },
         { status: 404 }
       );
     }
 
+    // Ensure this is a Fyers broker
+    if (broker.broker_name !== 'Fyers') {
+      return NextResponse.json(
+        { error: 'Not a Fyers broker' },
+        { status: 400 }
+      );
+    }
+
     // Extract the access token
-    const { 'Access Token': accessToken } = broker.credentials;
+    const accessToken = broker.access_token || broker.credentials['Access Token'];
     
     if (!accessToken) {
       return NextResponse.json(
@@ -61,156 +61,85 @@ export async function POST(request: Request) {
       );
     }
 
-    // Map transaction type to Fyers format
-    const fyersTransactionType = transaction_type.toUpperCase() === 'BUY' ? '1' : '2';
+    // Validate required parameters
+    if (!symbol || !quantity || !transactionType || !productType || !orderType) {
+      return NextResponse.json(
+        { error: 'Missing required order parameters' },
+        { status: 400 }
+      );
+    }
 
-    // Place the order based on the order type
-    try {
-      let orderResponse;
+    // Prepare order data based on order type
+    const orderData: any = {
+      symbol: symbol,
+      qty: parseInt(quantity),
+      type: productType,
+      side: transactionType,
+      order_type: orderType,
+      validity: "DAY",
+      disc_qty: 0,
+      offline_order: false
+    };
+
+    // Add price for LIMIT orders
+    if (orderType === 'LIMIT' && price) {
+      orderData.price = parseFloat(price);
+    }
+
+    // Add trigger price for SL or SL-M orders
+    if ((orderType === 'SL' || orderType === 'SL-M') && triggerPrice) {
+      orderData.stop_price = parseFloat(triggerPrice);
       
-      switch (order_type.toUpperCase()) {
-        case 'MARKET':
-          orderResponse = await fyersClient.placeMarketOrder(
-            accessToken,
-            symbol,
-            quantity,
-            fyersTransactionType,
-            product_type
-          );
-          break;
-          
-        case 'LIMIT':
-          if (!price) {
-            return NextResponse.json(
-              { error: 'Price is required for LIMIT orders' },
-              { status: 400 }
-            );
-          }
-          
-          orderResponse = await fyersClient.placeLimitOrder(
-            accessToken,
-            symbol,
-            quantity,
-            price,
-            fyersTransactionType,
-            product_type
-          );
-          break;
-          
-        case 'SL':
-          if (!price || !trigger_price) {
-            return NextResponse.json(
-              { error: 'Price and trigger_price are required for SL orders' },
-              { status: 400 }
-            );
-          }
-          
-          orderResponse = await fyersClient.placeStopLossLimitOrder(
-            accessToken,
-            symbol,
-            quantity,
-            price,
-            trigger_price,
-            fyersTransactionType,
-            product_type
-          );
-          break;
-          
-        case 'SL-M':
-          if (!trigger_price) {
-            return NextResponse.json(
-              { error: 'Trigger price is required for SL-M orders' },
-              { status: 400 }
-            );
-          }
-          
-          orderResponse = await fyersClient.placeStopLossMarketOrder(
-            accessToken,
-            symbol,
-            quantity,
-            trigger_price,
-            fyersTransactionType,
-            product_type
-          );
-          break;
-          
-        default:
-          return NextResponse.json(
-            { error: `Unsupported order type: ${order_type}` },
-            { status: 400 }
-          );
+      // SL orders also need a limit price
+      if (orderType === 'SL' && price) {
+        orderData.price = parseFloat(price);
       }
-      
-      // Check if the order was successful
-      if (orderResponse && orderResponse.code === 200) {
-        // Return the order response
-        return NextResponse.json({
-          success: true,
-          order_id: orderResponse.data?.id || null,
-          message: orderResponse.message || 'Order placed successfully',
-          data: orderResponse.data
-        });
-      } else {
-        // Order failed
-        return NextResponse.json(
-          { 
-            success: false,
-            error: orderResponse.message || 'Failed to place order',
-            code: orderResponse.code
-          },
-          { status: 400 }
-        );
-      }
-    } catch (apiError: any) {
-      // Check if the error is due to an expired token
-      const errorMessage = apiError.response?.data?.message || apiError.message;
-      const errorCode = apiError.response?.data?.code;
-      
-      if (errorCode === 401 || /expired|invalid token|unauthorized/i.test(errorMessage)) {
-        // Mark the broker as inactive due to token expiration
-        const { error: updateError } = await supabase
+    }
+
+    // Place the order with Fyers API
+    const orderResponse = await fetch(`${FYERS_API_URL}/orders`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(orderData)
+    });
+
+    if (!orderResponse.ok) {
+      // Check if it's a token-related error
+      if (orderResponse.status === 401 || orderResponse.status === 403) {
+        // Token might be expired or invalid
+        await supabase
           .from('broker_credentials')
-          .update({ 
-            is_active: false,
-            access_token: null,
-            credentials: {
-              ...broker.credentials,
-              'Access Token': null
-            }
-          })
-          .eq('id', broker.id);
+          .update({ is_active: false })
+          .eq('id', broker_id);
           
-        if (updateError) {
-          console.error('Error updating broker status:', updateError);
-        }
-        
         return NextResponse.json(
-          { 
-            success: false,
-            error: 'Token expired. Please re-authenticate your Fyers broker.',
-            requires_reauth: true
-          },
+          { error: 'Authentication failed with Fyers API. Please reactivate your broker.' },
           { status: 401 }
         );
       }
       
-      // Handle other API errors
+      // Other API error
+      const errorData = await orderResponse.json();
       return NextResponse.json(
-        { 
-          success: false,
-          error: 'Failed to place order with Fyers API',
-          details: errorMessage || 'Unknown error',
-          code: errorCode
-        },
-        { status: 500 }
+        { error: `Fyers API error: ${errorData.message || 'Unknown error'}` },
+        { status: orderResponse.status || 500 }
       );
     }
+
+    // Parse the order response
+    const orderResponseData = await orderResponse.json();
+    
+    // Return the order response
+    return NextResponse.json({
+      success: true,
+      data: orderResponseData
+    });
   } catch (error: any) {
     return NextResponse.json(
-      { 
-        success: false,
-        error: error.message || 'Failed to place order'
-      },
+      { error: error.message || 'Failed to place order with Fyers' },
       { status: 500 }
     );
   }

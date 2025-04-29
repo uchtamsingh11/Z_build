@@ -5,7 +5,6 @@ import { useNotification } from '@/lib/notification';
 import { Button } from '@/components/ui/button';
 import { Trash2, Edit2, ChevronRight, CheckCircle, AlertCircle, Shield, ServerIcon, KeyIcon, LinkIcon } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import {
@@ -44,7 +43,7 @@ const AVAILABLE_BROKERS: AvailableBrokerConfig[] = [
   { name: 'Delta Exchange', fields: ['API Key', 'Secret Key'] },
   { name: 'Dhan', fields: ['Client ID', 'Access Token'] },
   { name: 'Finvasia', fields: ['User ID', 'Password', 'Vendor Code', 'API Key', '2FA'] },
-  { name: 'Fyers', fields: ['API Key', 'Secret Key'] },
+  { name: 'Fyers', fields: ['App ID', 'Secret Key'] },
   { name: 'ICICI Direct', fields: ['User ID', 'API Key', 'Secret Key', 'DOB', 'Password'] },
   { name: 'IIFL', fields: ['Interactive API Key', 'Interactive Secret Key', 'Market API Key', 'Secret Key'] },
   { name: 'Kotak Neo', fields: ['Consumer Key', 'Secret Key', 'Access Token', 'Mobile No.', 'Password', 'MPIN'] },
@@ -127,6 +126,9 @@ export default function BrokerAuthContent() {
         // Authentication successful
         setSavedBrokers(prev => prev.map(b => b.id === brokerId ? { ...b, is_active: true } : b));
         
+        // Create a session for the authenticated broker
+        await createOrUpdateSession(brokerId, true);
+        
         // Remove this broker from loading state
         setLoadingBrokers(prev => prev.filter(id => id !== brokerId));
         
@@ -168,6 +170,105 @@ export default function BrokerAuthContent() {
     // Clean up the event listener when the component unmounts
     return () => {
       window.removeEventListener('message', handleUpstoxAuthCallback);
+    };
+  }, []);
+
+  // Handle Fyers OAuth callback completion
+  useEffect(() => {
+    const handleFyersAuthCallback = async (event: MessageEvent) => {
+      // Ensure we only handle messages from our own domain
+      if (event.origin !== window.location.origin) return;
+      
+      // Check if this is an Fyers auth success message
+      if (event.data && event.data.type === 'FYERS_AUTH_SUCCESS') {
+        // Get the broker ID from localStorage
+        const brokerId = localStorage.getItem('fyers_auth_broker_id');
+        
+        if (!brokerId) {
+          showNotification({
+            title: 'FYERS_AUTH_ERROR',
+            description: 'Authentication failed: Unable to identify broker.',
+            type: 'error',
+            duration: 5000
+          });
+          return;
+        }
+        
+        // Clear the broker ID from localStorage
+        localStorage.removeItem('fyers_auth_broker_id');
+        
+        // Verify the authentication was successful
+        const response = await fetch('/api/brokers/fyers/verify', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ broker_id: brokerId }),
+        });
+        
+        if (!response.ok) {
+          showNotification({
+            title: 'FYERS_AUTH_ERROR',
+            description: 'Failed to verify authentication.',
+            type: 'error',
+            duration: 5000
+          });
+          
+          // Set the broker as inactive
+          setSavedBrokers(prev => prev.map(b => b.id === brokerId ? { ...b, is_active: false } : b));
+          
+          // Remove this broker from loading state
+          setLoadingBrokers(prev => prev.filter(id => id !== brokerId));
+          return;
+        }
+        
+        // Authentication successful
+        setSavedBrokers(prev => prev.map(b => b.id === brokerId ? { ...b, is_active: true } : b));
+        
+        // Create a session for the authenticated broker
+        await createOrUpdateSession(brokerId, true);
+        
+        // Remove this broker from loading state
+        setLoadingBrokers(prev => prev.filter(id => id !== brokerId));
+        
+        showNotification({
+          title: 'FYERS_AUTH_SUCCESS',
+          description: 'Fyers has been successfully connected.',
+          type: 'success',
+          duration: 5000
+        });
+      }
+      
+      // Handle Fyers auth failure
+      if (event.data && event.data.type === 'FYERS_AUTH_FAILURE') {
+        const brokerId = localStorage.getItem('fyers_auth_broker_id');
+        
+        if (brokerId) {
+          // Clear the broker ID from localStorage
+          localStorage.removeItem('fyers_auth_broker_id');
+          
+          // Set the broker as inactive
+          setSavedBrokers(prev => prev.map(b => b.id === brokerId ? { ...b, is_active: false } : b));
+          
+          // Remove this broker from loading state
+          setLoadingBrokers(prev => prev.filter(id => id !== brokerId));
+        }
+        
+        showNotification({
+          title: 'FYERS_AUTH_ERROR',
+          description: event.data.error || 'Authentication failed.',
+          type: 'error',
+          duration: 5000
+        });
+      }
+    };
+    
+    // Add event listener for message events
+    window.addEventListener('message', handleFyersAuthCallback);
+    
+    // Clean up the event listener when the component unmounts
+    return () => {
+      window.removeEventListener('message', handleFyersAuthCallback);
     };
   }, []);
 
