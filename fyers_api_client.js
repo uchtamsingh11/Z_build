@@ -44,14 +44,14 @@ function initializeFyersClient(accessToken) {
             baseURL: FYERS_API_URL,
             headers: {
                 'Content-Type': 'application/json',
-                'Authorization': `${accessToken}`
+                'Authorization': `Bearer ${accessToken}`
             }
         }),
         dataAxiosInstance: axios.create({
             baseURL: FYERS_DATA_API_URL,
             headers: {
                 'Content-Type': 'application/json',
-                'Authorization': `${accessToken}`
+                'Authorization': `Bearer ${accessToken}`
             }
         }),
         accessToken
@@ -71,11 +71,15 @@ function initializeFyersClient(accessToken) {
  * @returns {string} - The URL to redirect user for authentication
  */
 function generateAuthCodeURL(clientId, appType, redirectUri) {
+    // Generate a random state to prevent CSRF attacks
+    const state = crypto.randomBytes(16).toString('hex');
+    
     const authParams = new URLSearchParams({
         client_id: clientId,
         redirect_uri: redirectUri,
         response_type: 'code',
-        state: crypto.randomBytes(16).toString('hex')
+        state: state,
+        app_id: `${clientId}-${appType}`
     });
     
     return `https://api.fyers.in/api/v2/generate-authcode?${authParams.toString()}`;
@@ -92,6 +96,7 @@ function generateAuthCodeURL(clientId, appType, redirectUri) {
  */
 async function generateAccessToken(authCode, clientId, secretKey, redirectUri) {
     try {
+        // Generate the hash required by Fyers
         const appIdHash = crypto.createHash('sha256')
             .update(`${authCode}:${secretKey}`)
             .digest('hex');
@@ -104,6 +109,11 @@ async function generateAccessToken(authCode, clientId, secretKey, redirectUri) {
             redirect_uri: redirectUri
         };
         
+        console.log('Sending token request with data:', JSON.stringify({
+            ...requestData,
+            appIdHash: '******' // Mask the hash for security
+        }));
+        
         const response = await axios.post(
             'https://api.fyers.in/api/v2/validate-authcode',
             requestData,
@@ -112,8 +122,13 @@ async function generateAccessToken(authCode, clientId, secretKey, redirectUri) {
             }
         );
         
-        console.log('Access token generated successfully');
-        return response.data;
+        if (response.data && response.data.access_token) {
+            console.log('Access token generated successfully');
+            return response.data;
+        } else {
+            console.error('Token response did not contain access_token:', response.data);
+            throw new Error('Invalid token response from Fyers');
+        }
     } catch (error) {
         console.error('Error generating access token:', error.response ? error.response.data : error);
         throw error;

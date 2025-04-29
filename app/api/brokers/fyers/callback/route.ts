@@ -9,10 +9,18 @@ const FYERS_REDIRECT_URI = process.env.FYERS_REDIRECT_URI || 'https://www.algoz.
 export async function GET(request: Request) {
   try {
     const url = new URL(request.url);
-    const code = url.searchParams.get('auth_code');
+    // Fyers may provide the code as 'auth_code', 'code', or in another parameter
+    const code = url.searchParams.get('auth_code') || url.searchParams.get('code');
     const state = url.searchParams.get('state');
     const error = url.searchParams.get('error');
-    const errorDescription = url.searchParams.get('error_msg');
+    const errorDescription = url.searchParams.get('error_msg') || url.searchParams.get('error_description');
+    
+    console.log('Callback received with params:', {
+      code: code ? 'PRESENT' : 'MISSING',
+      state: state ? 'PRESENT' : 'MISSING',
+      error: error || 'NONE',
+      params: Object.fromEntries(url.searchParams.entries())
+    });
     
     // If there's an error, close the window with an error message
     if (error) {
@@ -51,7 +59,7 @@ export async function GET(request: Request) {
           <script>
             window.opener.postMessage({
               type: 'FYERS_AUTH_FAILURE',
-              error: 'Missing code or state parameter'
+              error: 'Missing code or state parameter. Received params: ${JSON.stringify(Object.fromEntries(url.searchParams.entries()))}'
             }, window.location.origin);
             window.close();
           </script>
@@ -59,6 +67,7 @@ export async function GET(request: Request) {
         <body>
           <h1>Authentication Failed</h1>
           <p>Missing code or state parameter.</p>
+          <p>Received parameters: ${JSON.stringify(Object.fromEntries(url.searchParams.entries()))}</p>
         </body>
         </html>
       `, {
@@ -80,6 +89,8 @@ export async function GET(request: Request) {
       .single();
     
     if (brokerError || !broker) {
+      console.error('Broker not found with state:', state, brokerError);
+      
       return new Response(`
         <!DOCTYPE html>
         <html>
@@ -88,14 +99,14 @@ export async function GET(request: Request) {
           <script>
             window.opener.postMessage({
               type: 'FYERS_AUTH_FAILURE',
-              error: 'Invalid state parameter'
+              error: 'Invalid state parameter or session expired'
             }, window.location.origin);
             window.close();
           </script>
         </head>
         <body>
           <h1>Authentication Failed</h1>
-          <p>Invalid state parameter. Please try again.</p>
+          <p>Invalid state parameter or your authentication session has expired. Please try again.</p>
         </body>
         </html>
       `, {
@@ -110,6 +121,8 @@ export async function GET(request: Request) {
     
     // Exchange the authorization code for an access token
     try {
+      console.log('Exchanging auth code for token with:', { clientId, code: code?.substring(0, 5) + '...' });
+      
       const tokenData = await fyersClient.generateAccessToken(code, clientId, secretKey, FYERS_REDIRECT_URI);
       
       // Log token data for debugging (remove in production)
@@ -123,7 +136,7 @@ export async function GET(request: Request) {
       const updatedCredentials = {
         ...broker.credentials,
         'Access Token': tokenData.access_token,
-        'Token Type': 'bearer',
+        'Token Type': tokenData.token_type || 'bearer',
         'Expires In': tokenData.expires_in || '86400', // Default to 1 day if not provided
       };
       

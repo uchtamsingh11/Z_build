@@ -5,6 +5,7 @@ import * as fyersClient from '@/fyers_api_client';
 // Environment variables (would normally be in .env)
 const FYERS_API_URL = process.env.FYERS_API_URL || 'https://api.fyers.in/api/v2';
 const FYERS_REDIRECT_URI = process.env.FYERS_REDIRECT_URI || 'https://www.algoz.tech/api/brokers/fyers/callback';
+const FYERS_APP_TYPE = process.env.FYERS_APP_TYPE || '100'; // Default to 100 for API application
 
 export async function POST(request: Request) {
   try {
@@ -70,15 +71,20 @@ export async function POST(request: Request) {
       throw updateError;
     }
 
-    // Generate the OAuth URL - Fyers uses appType of "100" for API applications
-    const redirectUrl = fyersClient.generateAuthCodeURL(clientId, "100", FYERS_REDIRECT_URI);
+    // Generate the OAuth URL - Fyers uses appType parameter
+    const redirectUrl = fyersClient.generateAuthCodeURL(clientId, FYERS_APP_TYPE, FYERS_REDIRECT_URI);
+    
+    console.log('Generated Fyers OAuth URL:', redirectUrl);
 
     // Return the URL for the frontend to redirect to
     return NextResponse.json({
       success: true,
-      redirect_url: redirectUrl
+      redirect_url: redirectUrl,
+      state: state // Include state so frontend can verify
     });
   } catch (error: any) {
+    console.error('Failed to initiate Fyers OAuth flow:', error);
+    
     return NextResponse.json(
       { error: error.message || 'Failed to initiate Fyers OAuth flow' },
       { status: 500 }
