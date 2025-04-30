@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, useCallback } from "react";
 import { createChart, CandlestickSeries, BarSeries, LineSeries } from "lightweight-charts";
 import { Search, Sun, Moon, User, Settings, LogOut, BookOpen, Home, HelpCircle, Bell, ChevronDown } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -33,10 +33,67 @@ export default function AdvancedChartsPage() {
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [isSearchPopupOpen, setIsSearchPopupOpen] = useState(false);
   const [currentSymbol, setCurrentSymbol] = useState("BTCUSD");
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchError, setSearchError] = useState("");
   const router = useRouter();
   const [userEmail, setUserEmail] = useState("user@example.com");
   const [timeframe, setTimeframe] = useState("D");
   const [chartType, setChartType] = useState<"candlestick" | "bar" | "line">("candlestick");
+
+  // Create a debounce function for symbol search
+  const debounce = (func: Function, delay: number) => {
+    let debounceTimer: NodeJS.Timeout;
+    return function(...args: any[]) {
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => func(...args), delay);
+    };
+  };
+
+  // Fetch symbols function with error handling
+  const fetchSymbols = async (query: string) => {
+    if (!query.trim()) {
+      setSearchResults([]);
+      return;
+    }
+    
+    try {
+      setIsSearching(true);
+      setSearchError("");
+      
+      const supabase = createClient();
+      const { data, error } = await supabase
+        .from('symbols')
+        .select('DISPLAY_NAME, EXCH_ID, SECURITY_ID')
+        .ilike('DISPLAY_NAME', `%${query}%`)
+        .limit(20);
+      
+      if (error) {
+        console.error('Error fetching symbols:', error);
+        setSearchError("Failed to fetch symbols. Please try again.");
+        setSearchResults([]);
+      } else {
+        setSearchResults(data || []);
+      }
+    } catch (error) {
+      console.error('Error in symbol search:', error);
+      setSearchError("An unexpected error occurred. Please try again.");
+      setSearchResults([]);
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  // Create debounced search function
+  const debouncedFetchSymbols = useCallback(
+    debounce((query: string) => fetchSymbols(query), 300),
+    []
+  );
+
+  // Update search when query changes
+  useEffect(() => {
+    debouncedFetchSymbols(searchQuery);
+  }, [searchQuery, debouncedFetchSymbols]);
 
   useEffect(() => {
     // Check for current user and get email
@@ -158,6 +215,9 @@ export default function AdvancedChartsPage() {
 
   const handleOpenSearchPopup = () => {
     setIsSearchPopupOpen(true);
+    setSearchQuery(""); // Reset search query when opening popup
+    setSearchResults([]); // Reset results
+    setSearchError(""); // Reset error state
   };
 
   const handleCloseSearchPopup = () => {
@@ -429,11 +489,16 @@ export default function AdvancedChartsPage() {
 
       {/* Symbol search popup */}
       {isSearchPopupOpen && (
-        <SymbolSearchPopup 
+        <SymbolSearchPopup
           isOpen={isSearchPopupOpen}
           onClose={handleCloseSearchPopup}
           onSelectSymbol={handleSelectSymbol}
           isDarkMode={isDarkMode}
+          searchQuery={searchQuery}
+          setSearchQuery={setSearchQuery}
+          searchResults={searchResults}
+          isSearching={isSearching}
+          searchError={searchError}
         />
       )}
     </div>

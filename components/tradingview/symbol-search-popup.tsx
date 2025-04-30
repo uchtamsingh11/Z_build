@@ -1,26 +1,14 @@
 import React, { useState, useRef, useEffect } from "react";
-import { Search, X } from "lucide-react";
+import { Search, X, Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 
-// Mock symbol data
-const mockSymbols = [
-  { symbol: "NIFTY", name: "NIFTY 50 INDEX", type: "index", exchange: "NSE" },
-  { symbol: "BANKNIFTY", name: "NIFTY BANK INDEX", type: "index", exchange: "NSE" },
-  { symbol: "XAUUSD", name: "GOLD", type: "commodity", exchange: "OANDA" },
-  { symbol: "BTCUSD", name: "BITCOIN / U.S. DOLLAR", type: "crypto", exchange: "Bitstamp" },
-  { symbol: "BTCUSDT", name: "BITCOIN / TETHERUS", type: "crypto", exchange: "Binance" },
-  { symbol: "BTCUSD", name: "BITCOIN", type: "crypto", exchange: "CRYPTO" },
-  { symbol: "RELIANCE", name: "RELIANCE INDUSTRIES LTD", type: "stock", exchange: "NSE" },
-  { symbol: "NIFTY", name: "S&P CNX NIFTY INDEX FUTURES", type: "futures", exchange: "NSE" },
-  { symbol: "XAUUSD", name: "GOLD / U.S. DOLLAR", type: "commodity", exchange: "FOREX.com" },
-  { symbol: "NIFTY", name: "GIFT NIFTY 50 INDEX FUTURES", type: "futures", exchange: "NSEIX" },
-  { symbol: "AAPL", name: "APPLE INC", type: "stock", exchange: "NASDAQ" },
-  { symbol: "MSFT", name: "MICROSOFT CORP", type: "stock", exchange: "NASDAQ" },
-  { symbol: "AMZN", name: "AMAZON.COM INC", type: "stock", exchange: "NASDAQ" },
-  { symbol: "GOOGL", name: "ALPHABET INC", type: "stock", exchange: "NASDAQ" },
-  { symbol: "META", name: "META PLATFORMS INC", type: "stock", exchange: "NASDAQ" },
-];
+// Symbol type definition
+interface SymbolData {
+  DISPLAY_NAME: string;
+  EXCH_ID: string;
+  SECURITY_ID: number;
+}
 
 type Filter = "All" | "Stocks" | "Crypto" | "Futures" | "Forex" | "Indices" | "Bonds" | "Economy" | "Options";
 
@@ -29,6 +17,11 @@ interface SymbolSearchPopupProps {
   onClose: () => void;
   onSelectSymbol: (symbol: string) => void;
   isDarkMode: boolean;
+  searchQuery: string;
+  setSearchQuery: (query: string) => void;
+  searchResults: SymbolData[];
+  isSearching: boolean;
+  searchError: string;
 }
 
 const SymbolSearchPopup: React.FC<SymbolSearchPopupProps> = ({
@@ -36,8 +29,12 @@ const SymbolSearchPopup: React.FC<SymbolSearchPopupProps> = ({
   onClose,
   onSelectSymbol,
   isDarkMode,
+  searchQuery,
+  setSearchQuery,
+  searchResults,
+  isSearching,
+  searchError,
 }) => {
-  const [searchQuery, setSearchQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState<Filter>("All");
   const popupRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -68,23 +65,24 @@ const SymbolSearchPopup: React.FC<SymbolSearchPopupProps> = ({
     };
   }, [isOpen, onClose]);
 
-  // Filter symbols based on search and active filter
-  const filteredSymbols = mockSymbols.filter((symbol) => {
-    const matchesSearch = 
-      searchQuery === "" || 
-      symbol.symbol.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      symbol.name.toLowerCase().includes(searchQuery.toLowerCase());
-    
-    const matchesFilter = 
-      activeFilter === "All" || 
-      symbol.type.toLowerCase() === activeFilter.toLowerCase();
-    
-    return matchesSearch && matchesFilter;
-  });
+  // Filter already handled by the parent component via Supabase query
+  // Here we just need to handle the category filter (which we could add to DB later)
+  const filteredSymbols = searchResults;
 
   if (!isOpen) return null;
 
   const filters: Filter[] = ["All", "Stocks", "Futures", "Forex", "Crypto", "Indices", "Bonds", "Economy", "Options"];
+
+  // Helper function to get symbol type from exchange ID (simplified version)
+  const getSymbolType = (exchangeId: string): string => {
+    const exchange = exchangeId.toLowerCase();
+    if (exchange.includes('nasdaq') || exchange.includes('nyse')) return 'stock';
+    if (exchange.includes('binance') || exchange.includes('coinbase')) return 'crypto';
+    if (exchange.includes('fx') || exchange.includes('forex')) return 'forex';
+    if (exchange.includes('future')) return 'futures';
+    if (exchange.includes('index')) return 'index';
+    return 'stock'; // Default category
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
@@ -167,37 +165,64 @@ const SymbolSearchPopup: React.FC<SymbolSearchPopupProps> = ({
             scrollbarColor: isDarkMode ? '#4b5563 #1f2937' : '#d1d5db #f3f4f6',
           }}
         >
-          {filteredSymbols.length > 0 ? (
-            filteredSymbols.map((item, index) => (
-              <div
-                key={`${item.symbol}-${item.exchange}-${index}`}
-                onClick={() => onSelectSymbol(item.symbol)}
-                className={`flex cursor-pointer items-center justify-between rounded-md p-3 transition-colors ${
-                  isDarkMode
-                    ? "hover:bg-zinc-800"
-                    : "hover:bg-zinc-100"
-                }`}
-              >
-                <div className="flex items-center">
-                  <div className={`mr-4 rounded-full p-2 ${getSymbolTypeColor(item.type, isDarkMode)}`}>
-                    {getSymbolTypeIcon(item.type)}
-                  </div>
-                  <div>
-                    <div className="flex items-center">
-                      <span className="text-base font-medium">{item.symbol}</span>
-                      <span className={`ml-3 text-sm ${isDarkMode ? "text-zinc-400" : "text-zinc-500"}`}>
-                        {item.exchange}
-                      </span>
+          {isSearching ? (
+            <div className="flex h-24 items-center justify-center">
+              <Loader2 className={`h-6 w-6 animate-spin ${isDarkMode ? "text-zinc-400" : "text-zinc-500"}`} />
+              <p className={`ml-2 text-base ${isDarkMode ? "text-zinc-400" : "text-zinc-500"}`}>
+                Searching...
+              </p>
+            </div>
+          ) : searchError ? (
+            <div className="flex h-24 items-center justify-center">
+              <p className={`text-base text-red-500`}>
+                {searchError}
+              </p>
+            </div>
+          ) : filteredSymbols.length > 0 ? (
+            filteredSymbols.map((item, index) => {
+              // Extract symbol from display name
+              const symbolParts = item.DISPLAY_NAME.split(' ');
+              const symbolText = symbolParts[0];
+              // Get symbol type based on exchange
+              const symbolType = getSymbolType(item.EXCH_ID || '');
+              
+              return (
+                <div
+                  key={`${item.SECURITY_ID}-${index}`}
+                  onClick={() => onSelectSymbol(symbolText)}
+                  className={`flex cursor-pointer items-center justify-between rounded-md p-3 transition-colors ${
+                    isDarkMode
+                      ? "hover:bg-zinc-800"
+                      : "hover:bg-zinc-100"
+                  }`}
+                >
+                  <div className="flex items-center">
+                    <div className={`mr-4 rounded-full p-2 ${getSymbolTypeColor(symbolType, isDarkMode)}`}>
+                      {getSymbolTypeIcon(symbolType)}
                     </div>
-                    <div className="text-sm text-gray-500">{item.name}</div>
+                    <div>
+                      <div className="flex items-center">
+                        <span className="text-base font-medium">{symbolText}</span>
+                        <span className={`ml-3 text-sm ${isDarkMode ? "text-zinc-400" : "text-zinc-500"}`}>
+                          {item.EXCH_ID}
+                        </span>
+                      </div>
+                      <div className="text-sm text-gray-500">{item.DISPLAY_NAME}</div>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))
-          ) : (
+              );
+            })
+          ) : searchQuery.trim() ? (
             <div className="flex h-24 items-center justify-center">
               <p className={`text-base ${isDarkMode ? "text-zinc-400" : "text-zinc-500"}`}>
                 No symbols found
+              </p>
+            </div>
+          ) : (
+            <div className="flex h-24 items-center justify-center">
+              <p className={`text-base ${isDarkMode ? "text-zinc-400" : "text-zinc-500"}`}>
+                Type to search for symbols
               </p>
             </div>
           )}
