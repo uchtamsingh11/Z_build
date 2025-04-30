@@ -2,18 +2,29 @@
 
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import { createChart, CandlestickSeries, BarSeries, LineSeries } from "lightweight-charts";
-import { Search, Sun, Moon, User, Settings, LogOut, BookOpen, Home, HelpCircle, Bell, ChevronDown } from "lucide-react";
-import { Input } from "@/components/ui/input";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { 
-  Sheet, 
-  SheetContent, 
-  SheetTrigger,
-  SheetTitle,
-  SheetHeader,
-  SheetFooter
-} from "@/components/ui/sheet";
-import { Switch } from "@/components/ui/switch";
+  Search, 
+  ChevronDown, 
+  BarChart3, 
+  LineChart, 
+  CandlestickChart, 
+  Layers, 
+  PenTool, 
+  Gauge, 
+  Clock, 
+  ZoomIn, 
+  LayoutGrid, 
+  Compass, 
+  Settings, 
+  Save, 
+  Folder, 
+  Trash2,
+  MonitorSmartphone,
+  Wifi,
+  Sun
+} from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import SymbolSearchPopup from "@/components/tradingview/symbol-search-popup";
@@ -30,16 +41,64 @@ import {
 export default function AdvancedChartsPage() {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [isDarkMode, setIsDarkMode] = useState(false);
+  const [isDarkMode, setIsDarkMode] = useState(true);
   const [isSearchPopupOpen, setIsSearchPopupOpen] = useState(false);
   const [currentSymbol, setCurrentSymbol] = useState("BTCUSD");
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [searchError, setSearchError] = useState("");
+  const [sessionTime, setSessionTime] = useState(0);
+  const [currentTime, setCurrentTime] = useState(new Date());
+  const [selectedTool, setSelectedTool] = useState<string | null>(null);
   const router = useRouter();
   const [userEmail, setUserEmail] = useState("user@example.com");
   const [timeframe, setTimeframe] = useState("D");
   const [chartType, setChartType] = useState<"candlestick" | "bar" | "line">("candlestick");
+  const [isConnected, setIsConnected] = useState(true);
+
+  // Apply dark theme on initial load
+  useEffect(() => {
+    document.documentElement.classList.add('dark-mode');
+    
+    // Check for saved theme preference
+    const savedTheme = localStorage.getItem('chartTheme');
+    if (savedTheme === 'light') {
+      setIsDarkMode(false);
+      document.documentElement.classList.remove('dark-mode');
+    }
+  }, []);
+  
+  // Session timer
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setSessionTime(prevTime => prevTime + 1);
+    }, 1000);
+    
+    return () => clearInterval(timer);
+  }, []);
+  
+  // Update current time
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 1000);
+    
+    return () => clearInterval(timer);
+  }, []);
+  
+  // Format session time as HH:MM:SS
+  const formatSessionTime = () => {
+    const hours = Math.floor(sessionTime / 3600);
+    const minutes = Math.floor((sessionTime % 3600) / 60);
+    const seconds = sessionTime % 60;
+    
+    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+  };
+
+  // Format current time
+  const formatCurrentTime = () => {
+    return currentTime.toLocaleTimeString();
+  };
 
   // Create a debounce function for symbol search
   const debounce = (func: Function, delay: number) => {
@@ -131,22 +190,43 @@ export default function AdvancedChartsPage() {
       width: container.clientWidth,
       height: container.clientHeight,
       layout: {
-        background: { color: isDarkMode ? '#121212' : '#ffffff' },
+        background: { color: isDarkMode ? '#0e0e0e' : '#ffffff' },
         textColor: isDarkMode ? '#d9d9d9' : '#000',
         attributionLogo: false,
       },
       grid: {
         vertLines: {
-          color: isDarkMode ? '#333333' : '#eee',
+          color: isDarkMode ? 'rgba(42, 46, 57, 0.5)' : '#eee',
+          style: 1, // 0 - solid, 1 - dotted, 2 - dashed, 3 - large dashed
         },
         horzLines: {
-          color: isDarkMode ? '#333333' : '#eee',
+          color: isDarkMode ? 'rgba(42, 46, 57, 0.5)' : '#eee',
+          style: 1, // 0 - solid, 1 - dotted, 2 - dashed, 3 - large dashed
         },
       },
       timeScale: {
         timeVisible: true,
         secondsVisible: false,
+        borderColor: isDarkMode ? 'rgba(42, 46, 57, 0.5)' : '#eee',
       },
+      rightPriceScale: {
+        borderColor: isDarkMode ? 'rgba(42, 46, 57, 0.5)' : '#eee',
+      },
+      crosshair: {
+        mode: 1, // 0 - normal, 1 - magnet
+        vertLine: {
+          color: isDarkMode ? '#758696' : '#758696',
+          width: 1,
+          style: 1,
+          labelBackgroundColor: isDarkMode ? '#2A2E39' : '#fff',
+        },
+        horzLine: {
+          color: isDarkMode ? '#758696' : '#758696',
+          width: 1,
+          style: 1,
+          labelBackgroundColor: isDarkMode ? '#2A2E39' : '#fff',
+        }
+      }
     });
     
     // Generate one unique data point per day for 30 days
@@ -188,13 +268,26 @@ export default function AdvancedChartsPage() {
     
     let series;
     if (chartType === "candlestick") {
-      series = chart.addSeries(CandlestickSeries, {});
+      series = chart.addSeries(CandlestickSeries, {
+        upColor: '#089981',
+        downColor: '#f23645',
+        borderUpColor: '#089981',
+        borderDownColor: '#f23645',
+        wickUpColor: '#089981',
+        wickDownColor: '#f23645',
+      });
       series.setData(candleData);
     } else if (chartType === "bar") {
-      series = chart.addSeries(BarSeries, {});
+      series = chart.addSeries(BarSeries, {
+        upColor: '#089981',
+        downColor: '#f23645',
+      });
       series.setData(candleData);
     } else if (chartType === "line") {
-      series = chart.addSeries(LineSeries, {});
+      series = chart.addSeries(LineSeries, {
+        color: '#2962FF',
+        lineWidth: 2,
+      });
       series.setData(lineData);
     } else {
       // Default to candlestick if for some reason chartType is not one of the expected values
@@ -233,18 +326,14 @@ export default function AdvancedChartsPage() {
 
   const toggleTheme = () => {
     setIsDarkMode(prev => !prev);
-    // Apply theme to document body
+    // Apply theme to document body and save to localStorage
     if (!isDarkMode) {
       document.documentElement.classList.add('dark-mode');
+      localStorage.setItem('chartTheme', 'dark');
     } else {
       document.documentElement.classList.remove('dark-mode');
+      localStorage.setItem('chartTheme', 'light');
     }
-  };
-
-  const handleSignOut = async () => {
-    const supabase = createClient();
-    await supabase.auth.signOut();
-    router.push('/'); // Redirect to landing page
   };
 
   const handleTimeframeChange = (newTimeframe: string) => {
@@ -258,234 +347,270 @@ export default function AdvancedChartsPage() {
     console.log(`Chart type changed to: ${newType}`);
   };
 
+  const handleToolSelect = (toolName: string) => {
+    setSelectedTool(selectedTool === toolName ? null : toolName);
+    console.log(`Tool selected: ${toolName}`);
+  };
+
   return (
-    <div style={{ width: '100%', height: '100vh', margin: 0, padding: 0, overflow: 'hidden' }}>
-      {/* Header with avatar and search bar */}
-      <header className={`absolute top-0 left-0 right-0 z-10 flex h-12 items-center border-b ${isDarkMode ? 'border-zinc-800 bg-black/90' : 'border-zinc-200 bg-white/90'} backdrop-blur-sm px-4`}>
+    <div className="flex flex-col h-screen w-screen bg-[#0e0e0e] text-white overflow-hidden relative">
+      {/* Left sidebar toolbar - vertical */}
+      <div className="absolute left-0 top-0 bottom-0 z-20 w-12 border-r border-zinc-800 bg-[#131722] flex flex-col items-center py-3">
+        <TooltipProvider>
+          {/* Chart type toggle */}
+          <div className="mb-6 flex flex-col gap-2">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button 
+                  onClick={() => handleChartTypeChange("candlestick")}
+                  className={`w-10 h-10 flex items-center justify-center rounded-sm ${chartType === "candlestick" ? "bg-[#2A2E39] text-white" : "text-zinc-400 hover:bg-[#2A2E39] hover:text-white"}`}
+                >
+                  <CandlestickChart size={18} />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="right">
+                <p>Candlestick Chart</p>
+              </TooltipContent>
+            </Tooltip>
+
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button 
+                  onClick={() => handleChartTypeChange("bar")}
+                  className={`w-10 h-10 flex items-center justify-center rounded-sm ${chartType === "bar" ? "bg-[#2A2E39] text-white" : "text-zinc-400 hover:bg-[#2A2E39] hover:text-white"}`}
+                >
+                  <BarChart3 size={18} />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="right">
+                <p>Bar Chart</p>
+              </TooltipContent>
+            </Tooltip>
+
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button 
+                  onClick={() => handleChartTypeChange("line")}
+                  className={`w-10 h-10 flex items-center justify-center rounded-sm ${chartType === "line" ? "bg-[#2A2E39] text-white" : "text-zinc-400 hover:bg-[#2A2E39] hover:text-white"}`}
+                >
+                  <LineChart size={18} />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="right">
+                <p>Line Chart</p>
+              </TooltipContent>
+            </Tooltip>
+          </div>
+
+          <Separator className="w-8 my-2 bg-zinc-800" />
+
+          {/* Drawing tools section */}
+          <div className="mb-6 flex flex-col gap-2">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button 
+                  onClick={() => handleToolSelect("pointer")}
+                  className={`w-10 h-10 flex items-center justify-center rounded-sm ${selectedTool === "pointer" ? "bg-[#2A2E39] text-white" : "text-zinc-400 hover:bg-[#2A2E39] hover:text-white"}`}
+                >
+                  <Compass size={18} />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="right">
+                <p>Cursor Tool</p>
+              </TooltipContent>
+            </Tooltip>
+
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button 
+                  onClick={() => handleToolSelect("crosshair")}
+                  className={`w-10 h-10 flex items-center justify-center rounded-sm ${selectedTool === "crosshair" ? "bg-[#2A2E39] text-white" : "text-zinc-400 hover:bg-[#2A2E39] hover:text-white"}`}
+                >
+                  <PenTool size={18} />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="right">
+                <p>Drawing Tools</p>
+              </TooltipContent>
+            </Tooltip>
+
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button 
+                  onClick={() => handleToolSelect("layouts")}
+                  className={`w-10 h-10 flex items-center justify-center rounded-sm ${selectedTool === "layouts" ? "bg-[#2A2E39] text-white" : "text-zinc-400 hover:bg-[#2A2E39] hover:text-white"}`}
+                >
+                  <LayoutGrid size={18} />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="right">
+                <p>Chart Layouts</p>
+              </TooltipContent>
+            </Tooltip>
+
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button 
+                  onClick={() => handleToolSelect("indicators")}
+                  className={`w-10 h-10 flex items-center justify-center rounded-sm ${selectedTool === "indicators" ? "bg-[#2A2E39] text-white" : "text-zinc-400 hover:bg-[#2A2E39] hover:text-white"}`}
+                >
+                  <Gauge size={18} />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="right">
+                <p>Indicators</p>
+              </TooltipContent>
+            </Tooltip>
+          </div>
+
+          <Separator className="w-8 my-2 bg-zinc-800" />
+
+          {/* Bottom tools */}
+          <div className="mt-auto flex flex-col gap-2">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button 
+                  onClick={() => handleToolSelect("save")}
+                  className={`w-10 h-10 flex items-center justify-center rounded-sm ${selectedTool === "save" ? "bg-[#2A2E39] text-white" : "text-zinc-400 hover:bg-[#2A2E39] hover:text-white"}`}
+                >
+                  <Save size={18} />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="right">
+                <p>Save Layout</p>
+              </TooltipContent>
+            </Tooltip>
+
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button 
+                  onClick={() => handleToolSelect("load")}
+                  className={`w-10 h-10 flex items-center justify-center rounded-sm ${selectedTool === "load" ? "bg-[#2A2E39] text-white" : "text-zinc-400 hover:bg-[#2A2E39] hover:text-white"}`}
+                >
+                  <Folder size={18} />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="right">
+                <p>Load Layout</p>
+              </TooltipContent>
+            </Tooltip>
+
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button 
+                  onClick={toggleTheme}
+                  className="w-10 h-10 flex items-center justify-center rounded-sm text-zinc-400 hover:bg-[#2A2E39] hover:text-white"
+                >
+                  <Sun size={18} />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="right">
+                <p>Toggle Theme</p>
+              </TooltipContent>
+            </Tooltip>
+
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button 
+                  onClick={() => handleToolSelect("settings")}
+                  className={`w-10 h-10 flex items-center justify-center rounded-sm ${selectedTool === "settings" ? "bg-[#2A2E39] text-white" : "text-zinc-400 hover:bg-[#2A2E39] hover:text-white"}`}
+                >
+                  <Settings size={18} />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="right">
+                <p>Settings</p>
+              </TooltipContent>
+            </Tooltip>
+          </div>
+        </TooltipProvider>
+      </div>
+      
+      {/* Top toolbar - horizontal */}
+      <div className="h-12 ml-12 border-b border-zinc-800 bg-[#131722] flex items-center px-4 z-10">
         <div className="flex items-center space-x-3">
-          {/* Avatar with Sheet panel trigger */}
-          <Sheet>
-            <SheetTrigger asChild>
-              <button className="focus:outline-none">
-                <Avatar className="h-8 w-8 cursor-pointer transition-transform hover:scale-105">
-                  <AvatarImage src="/avatar-placeholder.svg" alt="Profile" />
-                  <AvatarFallback className="!bg-black !text-white border border-zinc-800">
-                    <User size={16} color="white" strokeWidth={2} />
-                  </AvatarFallback>
-                </Avatar>
-              </button>
-            </SheetTrigger>
-            
-            <SheetContent 
-              side="left" 
-              className={`w-80 p-0 ${isDarkMode ? 'bg-zinc-900 text-white border-r border-zinc-800' : 'bg-white text-zinc-900 border-r border-zinc-200'}`}>
-              <SheetHeader className="p-6 pb-4 border-b border-solid border-0 border-b-zinc-800/20">
-                <SheetTitle className="sr-only">User Profile</SheetTitle>
-                <div className="flex items-center space-x-4">
-                  <Avatar className="h-14 w-14 border border-solid border-zinc-700/20">
-                    <AvatarImage src="/avatar-placeholder.svg" alt="Profile" />
-                    <AvatarFallback className="!bg-black !text-white border border-zinc-800">
-                      <User size={24} strokeWidth={1.5} className="text-white" />
-                    </AvatarFallback>
-                  </Avatar>
-                  <div>
-                    <p className="text-sm mt-1">{userEmail}</p>
-                  </div>
-                </div>
-              </SheetHeader>
-              
-              <div className="px-6 py-4 flex flex-col gap-6">
-                <div className="flex flex-col gap-3">
-                  <h4 className={`text-xs uppercase font-semibold ${isDarkMode ? 'text-zinc-400' : 'text-zinc-500'} tracking-wide`}>Navigation</h4>
-                  <div className="flex flex-col gap-1">
-                    <Button variant="ghost" className="w-full justify-start h-10 px-3 gap-3 rounded-md">
-                      <Home size={18} strokeWidth={1.5} />
-                      <span className="font-normal">Dashboard</span>
-                    </Button>
-                    <Button variant="ghost" className="w-full justify-start h-10 px-3 gap-3 rounded-md">
-                      <BookOpen size={18} strokeWidth={1.5} />
-                      <span className="font-normal">Trading History</span>
-                    </Button>
-                    <Button variant="ghost" className="w-full justify-start h-10 px-3 gap-3 rounded-md">
-                      <Bell size={18} strokeWidth={1.5} />
-                      <span className="font-normal">Alerts</span>
-                    </Button>
-                  </div>
-                </div>
-                
-                <Separator className={isDarkMode ? 'bg-zinc-800/50 h-px' : 'bg-zinc-200 h-px'} />
-                
-                <div className="flex flex-col gap-3">
-                  <h4 className={`text-xs uppercase font-semibold ${isDarkMode ? 'text-zinc-400' : 'text-zinc-500'} tracking-wide`}>Settings</h4>
-                  <div className="flex flex-col gap-3">
-                    <div className="flex items-center justify-between px-3 py-2">
-                      <div className="flex items-center gap-3">
-                        {isDarkMode ? <Moon size={18} strokeWidth={1.5} /> : <Sun size={18} strokeWidth={1.5} />}
-                        <span className="text-sm">Dark Mode</span>
-                      </div>
-                      <Switch 
-                        checked={isDarkMode} 
-                        onCheckedChange={toggleTheme} 
-                        className={`data-[state=checked]:bg-zinc-800 border ${isDarkMode ? 'border-zinc-600' : 'border-zinc-300'}`}
-                      />
-                    </div>
-                    
-                    <Button variant="ghost" className="w-full justify-start h-10 px-3 gap-3 rounded-md">
-                      <Settings size={18} strokeWidth={1.5} />
-                      <span className="font-normal">Account Settings</span>
-                    </Button>
-                    
-                    <Button variant="ghost" className="w-full justify-start h-10 px-3 gap-3 rounded-md">
-                      <HelpCircle size={18} strokeWidth={1.5} />
-                      <span className="font-normal">Help & Support</span>
-                    </Button>
-                    
-                    <Button 
-                      variant="ghost" 
-                      className="w-full justify-start text-red-500 hover:text-red-600 hover:bg-red-50/10 dark:hover:bg-red-950/10 h-10 px-3 gap-3 rounded-md"
-                      onClick={handleSignOut}
-                    >
-                      <LogOut size={18} strokeWidth={1.5} />
-                      <span className="font-normal">Sign Out</span>
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            </SheetContent>
-          </Sheet>
-          
-          {/* Search button to open symbol search popup */}
+          {/* Symbol selector */}
           <Button
             variant="ghost"
             size="sm"
             onClick={handleOpenSearchPopup}
-            className={`flex h-9 items-center space-x-2 rounded-md px-3 ${
-              isDarkMode ? 'hover:bg-zinc-800' : 'hover:bg-zinc-100'
-            }`}
+            className="h-9 flex items-center space-x-2 rounded-sm px-3 bg-[#2A2E39]/30 hover:bg-[#2A2E39]"
           >
-            <Search className={`h-4.5 w-4.5 ${isDarkMode ? 'text-zinc-400' : 'text-zinc-500'}`} />
-            <span className={`text-sm font-medium ${isDarkMode ? 'text-zinc-200' : 'text-zinc-800'}`}>
-              {currentSymbol}
-            </span>
+            <span className="text-sm font-medium text-white">{currentSymbol}</span>
+            <ChevronDown className="h-4 w-4 text-zinc-400" />
           </Button>
           
-          {/* Vertical divider */}
-          <div className={`h-6 w-px ${isDarkMode ? 'bg-zinc-700' : 'bg-zinc-300'}`}></div>
-          
-          {/* Timeframe dropdown */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
+          {/* Timeframe selectors */}
+          <div className="flex items-center gap-1">
+            {['1m', '5m', '15m', '1h', '4h', 'D', 'W', 'M'].map((tf) => (
               <Button
+                key={tf}
                 variant="ghost"
                 size="sm"
-                className={`flex h-9 px-2 rounded-md items-center ${
-                  isDarkMode ? 'hover:bg-zinc-800' : 'hover:bg-zinc-100'
-                }`}
+                className={`px-2 h-7 text-xs rounded-sm ${timeframe === tf ? 'bg-[#2A2E39] text-white' : 'text-zinc-400 hover:bg-[#2A2E39]/70 hover:text-white'}`}
+                onClick={() => handleTimeframeChange(tf)}
               >
-                <span className={`font-medium text-sm ${isDarkMode ? 'text-zinc-200' : 'text-zinc-800'}`}>
-                  {timeframe}
-                </span>
-                <ChevronDown className={`ml-1 h-4 w-4 ${isDarkMode ? 'text-zinc-400' : 'text-zinc-500'}`} />
+                {tf}
               </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="center" className={`${isDarkMode ? 'bg-zinc-900 border-zinc-800' : 'bg-white border-zinc-200'}`}>
-              <DropdownMenuItem onClick={() => handleTimeframeChange("1m")} className={`${isDarkMode ? 'text-zinc-200 focus:bg-zinc-800' : 'text-zinc-800 focus:bg-zinc-100'}`}>1m</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleTimeframeChange("5m")} className={`${isDarkMode ? 'text-zinc-200 focus:bg-zinc-800' : 'text-zinc-800 focus:bg-zinc-100'}`}>5m</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleTimeframeChange("15m")} className={`${isDarkMode ? 'text-zinc-200 focus:bg-zinc-800' : 'text-zinc-800 focus:bg-zinc-100'}`}>15m</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleTimeframeChange("1h")} className={`${isDarkMode ? 'text-zinc-200 focus:bg-zinc-800' : 'text-zinc-800 focus:bg-zinc-100'}`}>1h</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleTimeframeChange("4h")} className={`${isDarkMode ? 'text-zinc-200 focus:bg-zinc-800' : 'text-zinc-800 focus:bg-zinc-100'}`}>4h</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleTimeframeChange("D")} className={`${isDarkMode ? 'text-zinc-200 focus:bg-zinc-800' : 'text-zinc-800 focus:bg-zinc-100'}`}>D</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleTimeframeChange("W")} className={`${isDarkMode ? 'text-zinc-200 focus:bg-zinc-800' : 'text-zinc-800 focus:bg-zinc-100'}`}>W</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleTimeframeChange("M")} className={`${isDarkMode ? 'text-zinc-200 focus:bg-zinc-800' : 'text-zinc-800 focus:bg-zinc-100'}`}>M</DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+            ))}
+          </div>
           
           {/* Vertical divider */}
-          <div className={`h-6 w-px ${isDarkMode ? 'bg-zinc-700' : 'bg-zinc-300'}`}></div>
-          
-          {/* Chart type selector */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                size="sm"
-                className={`flex h-9 rounded-md px-2 items-center ${
-                  isDarkMode ? 'hover:bg-zinc-800' : 'hover:bg-zinc-100'
-                }`}
-              >
-                {chartType === "candlestick" && (
-                  <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg" className="mr-0">
-                    <rect x="4" y="3" width="2" height="12" rx="0.5" className={isDarkMode ? 'fill-zinc-300' : 'fill-zinc-700'} />
-                    <rect x="8" y="6" width="2" height="9" rx="0.5" className={isDarkMode ? 'fill-zinc-300' : 'fill-zinc-700'} />
-                    <rect x="12" y="9" width="2" height="6" rx="0.5" className={isDarkMode ? 'fill-zinc-300' : 'fill-zinc-700'} />
-                  </svg>
-                )}
-                {chartType === "bar" && (
-                  <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg" className="mr-0">
-                    <line x1="4" y1="4" x2="4" y2="14" stroke={isDarkMode ? '#d4d4d8' : '#3f3f46'} strokeWidth="2" strokeLinecap="round" />
-                    <line x1="9" y1="6" x2="9" y2="14" stroke={isDarkMode ? '#d4d4d8' : '#3f3f46'} strokeWidth="2" strokeLinecap="round" />
-                    <line x1="14" y1="8" x2="14" y2="14" stroke={isDarkMode ? '#d4d4d8' : '#3f3f46'} strokeWidth="2" strokeLinecap="round" />
-                  </svg>
-                )}
-                {chartType === "line" && (
-                  <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg" className="mr-0">
-                    <path d="M2 14L6 10L10 12L16 6" stroke={isDarkMode ? '#d4d4d8' : '#3f3f46'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                )}
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="center" className={`${isDarkMode ? 'bg-zinc-900 border-zinc-800' : 'bg-white border-zinc-200'}`}>
-              <DropdownMenuItem onClick={() => handleChartTypeChange("candlestick")} className={`${isDarkMode ? 'text-zinc-200 focus:bg-zinc-800' : 'text-zinc-800 focus:bg-zinc-100'}`}>
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" className="mr-2">
-                  <rect x="3" y="2" width="2" height="12" rx="0.5" className={isDarkMode ? 'fill-zinc-300' : 'fill-zinc-700'} />
-                  <rect x="7" y="5" width="2" height="9" rx="0.5" className={isDarkMode ? 'fill-zinc-300' : 'fill-zinc-700'} />
-                  <rect x="11" y="8" width="2" height="6" rx="0.5" className={isDarkMode ? 'fill-zinc-300' : 'fill-zinc-700'} />
-                </svg>
-                Candles
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleChartTypeChange("bar")} className={`${isDarkMode ? 'text-zinc-200 focus:bg-zinc-800' : 'text-zinc-800 focus:bg-zinc-100'}`}>
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" className="mr-2">
-                  <line x1="4" y1="4" x2="4" y2="12" stroke={isDarkMode ? '#d4d4d8' : '#3f3f46'} strokeWidth="1.5" />
-                  <line x1="8" y1="6" x2="8" y2="14" stroke={isDarkMode ? '#d4d4d8' : '#3f3f46'} strokeWidth="1.5" />
-                  <line x1="12" y1="2" x2="12" y2="10" stroke={isDarkMode ? '#d4d4d8' : '#3f3f46'} strokeWidth="1.5" />
-                </svg>
-                Bar
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleChartTypeChange("line")} className={`${isDarkMode ? 'text-zinc-200 focus:bg-zinc-800' : 'text-zinc-800 focus:bg-zinc-100'}`}>
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" className="mr-2">
-                  <path d="M2 12L6 8L10 10L14 4" stroke={isDarkMode ? '#d4d4d8' : '#3f3f46'} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-                Line
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-          
-          {/* Vertical divider */}
-          <div className={`h-6 w-px ${isDarkMode ? 'bg-zinc-700' : 'bg-zinc-300'}`}></div>
+          <div className="h-6 w-px bg-zinc-700"></div>
           
           {/* Indicators button */}
           <Button
             variant="ghost"
             size="sm"
-            className={`flex h-9 items-center space-x-2 rounded-md px-3 ${
-              isDarkMode ? 'hover:bg-zinc-800' : 'hover:bg-zinc-100'
-            }`}
+            className="h-9 flex items-center space-x-2 rounded-sm px-3 hover:bg-[#2A2E39]"
+            onClick={() => handleToolSelect("indicators")}
           >
             <div className="flex items-center">
-              <IndicatorsIcon className={`h-4.5 w-4.5 ${isDarkMode ? 'text-zinc-200' : 'text-zinc-800'}`} />
-              <span className={`ml-2 text-sm font-medium ${isDarkMode ? 'text-zinc-200' : 'text-zinc-800'}`}>
+              <Layers className="h-4 w-4 text-zinc-300" />
+              <span className="ml-2 text-sm font-medium text-zinc-300">
                 Indicators
               </span>
             </div>
           </Button>
+          
+          {/* Compare button */}
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-9 flex items-center space-x-2 rounded-sm px-3 hover:bg-[#2A2E39]"
+          >
+            <div className="flex items-center">
+              <Search className="h-4 w-4 text-zinc-300" />
+              <span className="ml-2 text-sm font-medium text-zinc-300">
+                Compare
+              </span>
+            </div>
+          </Button>
         </div>
-      </header>
+      </div>
       
-      <div
+      {/* Main chart area */}
+      <div 
+        className="relative flex-1 ml-12"
         ref={chartContainerRef}
-        className="chart-container"
-        style={{ width: '100%', height: '100vh', margin: 0, padding: 0 }}
       />
+      
+      {/* Bottom status bar */}
+      <div className="h-6 ml-12 border-t border-zinc-800 bg-[#131722]/90 flex items-center justify-between px-4 text-xs text-zinc-400 z-10">
+        <div className="flex items-center">
+          <div className="flex items-center mr-4">
+            <Wifi className="w-3 h-3 mr-1 text-green-500" />
+            <span>{isConnected ? "Connected" : "Disconnected"}</span>
+          </div>
+          <span className="mr-4">{currentSymbol}</span>
+        </div>
+        
+        <div className="flex items-center">
+          <Clock className="w-3 h-3 mr-1" />
+          <span className="mr-4">Session: {formatSessionTime()}</span>
+          <span>{formatCurrentTime()}</span>
+        </div>
+      </div>
 
       {/* Symbol search popup */}
       {isSearchPopupOpen && (
