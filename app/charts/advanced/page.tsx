@@ -21,7 +21,8 @@ import {
   Trash2,
   MonitorSmartphone,
   Wifi,
-  Sun
+  Sun,
+  CalendarRange
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Input } from "@/components/ui/input";
@@ -50,6 +51,7 @@ export default function AdvancedChartsPage() {
   const [sessionTime, setSessionTime] = useState(0);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [selectedTool, setSelectedTool] = useState<string | null>(null);
+  const [selectedTimeframe, setSelectedTimeframe] = useState("1D");
   const router = useRouter();
   const [userEmail, setUserEmail] = useState("user@example.com");
   const [timeframe, setTimeframe] = useState("D");
@@ -352,6 +354,13 @@ export default function AdvancedChartsPage() {
     console.log(`Tool selected: ${toolName}`);
   };
 
+  // Handle timeframe selection in the bottom bar
+  const handleTimeframeSelect = (tf: string) => {
+    setSelectedTimeframe(tf);
+    console.log(`Selected timeframe: ${tf}`);
+    // Here you would normally fetch data for the selected timeframe
+  };
+
   return (
     <div className="flex flex-col h-screen w-screen bg-[#0e0e0e] text-white overflow-hidden relative">
       {/* Left sidebar toolbar - vertical */}
@@ -594,6 +603,41 @@ export default function AdvancedChartsPage() {
         className="relative flex-1 ml-12"
         ref={chartContainerRef}
       />
+      
+      {/* Timeframe selector bar */}
+      <div className="h-10 ml-12 border-t border-zinc-800 bg-[#131722] flex items-center justify-between px-4 z-10">
+        <div className="flex items-center h-full">
+          {["1D", "5D", "1M", "3M", "6M", "YTD", "1Y", "5Y", "All"].map((tf) => (
+            <button
+              key={tf}
+              className={`px-4 h-full flex items-center text-sm font-medium ${
+                selectedTimeframe === tf 
+                  ? "text-white border-b-2 border-blue-500" 
+                  : "text-zinc-400 hover:text-zinc-200"
+              }`}
+              onClick={() => handleTimeframeSelect(tf)}
+            >
+              {tf}
+            </button>
+          ))}
+        </div>
+        
+        <div className="flex items-center">
+          <button className="flex items-center text-zinc-400 hover:text-white ml-4 border-l border-zinc-700 pl-4">
+            <CalendarRange className="w-4 h-4 mr-2" />
+            <span className="text-sm">Date Range</span>
+          </button>
+          
+          <div className="flex items-center ml-6 border-l border-zinc-700 pl-4">
+            <Clock className="w-4 h-4 mr-2 text-zinc-400" />
+            <span className="text-sm text-zinc-300">
+              {currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+              {" "}
+              {Intl.DateTimeFormat().resolvedOptions().timeZone}
+            </span>
+          </div>
+        </div>
+      </div>
       
       {/* Bottom status bar */}
       <div className="h-6 ml-12 border-t border-zinc-800 bg-[#131722]/90 flex items-center justify-between px-4 text-xs text-zinc-400 z-10">
