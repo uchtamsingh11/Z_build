@@ -22,7 +22,34 @@ import { CoinBalanceDisplay } from "@/components/coin-balance-display"
 import { useNotification } from '@/lib/notification'
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
+import { 
+  Card, 
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle, 
+} from "@/components/ui/card"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
+import { Skeleton } from "@/components/ui/skeleton"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+
+interface Referral {
+  id: string
+  referred_by: string
+  referred_user: string
+  amount: number
+  paid_at: string
+  created_at?: string
+  updated_at?: string
+  referred_user_email?: string
+}
 
 export default function ReferralPage() {
   const router = useRouter()
@@ -31,6 +58,12 @@ export default function ReferralPage() {
   const [user, setUser] = useState<any>(null)
   const { showNotification } = useNotification()
   const supabase = createClient()
+  
+  // Analytics states
+  const [isAnalyticsLoading, setIsAnalyticsLoading] = useState(true)
+  const [referrals, setReferrals] = useState<Referral[]>([])
+  const [totalRevenue, setTotalRevenue] = useState(0)
+  const [totalUsers, setTotalUsers] = useState(0)
 
   // Fetch current user and their referral code on page load
   useEffect(() => {
@@ -79,11 +112,99 @@ export default function ReferralPage() {
         }
       } else if (data && data.referral) {
         setReferralCode(data.referral)
+        
+        // If user has a referral code, fetch analytics data
+        if (data.referral) {
+          fetchReferralAnalytics(data.referral);
+        } else {
+          setIsAnalyticsLoading(false);
+        }
+      } else {
+        setIsAnalyticsLoading(false);
       }
     }
     
     fetchUserData()
   }, [router])
+
+  // Fetch referral analytics data
+  const fetchReferralAnalytics = async (userReferralCode: string) => {
+    try {
+      setIsAnalyticsLoading(true)
+      
+      if (!userReferralCode) {
+        console.log('No referral code available, skipping analytics fetch')
+        setReferrals([])
+        setTotalUsers(0)
+        setTotalRevenue(0)
+        setIsAnalyticsLoading(false)
+        return
+      }
+      
+      console.log('Fetching referrals for code:', userReferralCode)
+      
+      // Fetch all referrals where the current user's code was used
+      const { data: referralsData, error: referralsError } = await supabase
+        .from('referrals')
+        .select('*')
+        .eq('referred_by', userReferralCode)
+        .order('paid_at', { ascending: false })
+        
+      if (referralsError) {
+        console.error('Error fetching referrals:', referralsError)
+        throw referralsError
+      }
+      
+      const safeReferralsData = referralsData || []
+      console.log('Fetched referrals data:', safeReferralsData.length, 'records')
+      
+      // Enhancement: Fetch user emails for referred users
+      const referralsWithUserDetails = await Promise.all(
+        safeReferralsData.map(async (referral) => {
+          try {
+            // Get user email for each referred user
+            const { data: referredUserData } = await supabase
+              .from('users')
+              .select('email')
+              .eq('id', referral.referred_user)
+              .single()
+              
+            return {
+              ...referral,
+              referred_user_email: referredUserData?.email || 'Unknown user'
+            }
+          } catch (err) {
+            console.error('Error getting user details:', err)
+            return {
+              ...referral,
+              referred_user_email: 'Unknown user'
+            }
+          }
+        })
+      )
+      
+      setReferrals(referralsWithUserDetails)
+      
+      // Calculate totals
+      setTotalUsers(new Set(safeReferralsData.map(r => r.referred_user)).size)
+      setTotalRevenue(safeReferralsData.reduce((sum, referral) => sum + (parseFloat(referral.amount) || 0), 0))
+      
+    } catch (error: any) {
+      console.error('Error fetching referral data:', error)
+      // Show a more detailed error if available
+      showNotification({
+        title: 'Error',
+        description: 'Failed to load referral analytics: ' + (error.message || 'Unknown error'),
+        type: 'error'
+      })
+      // Set empty state to prevent UI from breaking
+      setReferrals([])
+      setTotalUsers(0)
+      setTotalRevenue(0)
+    } finally {
+      setIsAnalyticsLoading(false)
+    }
+  }
 
   const handleGenerateReferral = async () => {
     if (!referralCode.trim()) {
@@ -179,6 +300,10 @@ export default function ReferralPage() {
         description: 'Your referral code has been updated',
         type: 'success'
       })
+      
+      // Fetch analytics data with the new referral code
+      fetchReferralAnalytics(referralCode);
+      
     } catch (error) {
       console.error('Error setting referral code:', error)
       showNotification({
@@ -189,6 +314,17 @@ export default function ReferralPage() {
     } finally {
       setIsLoading(false)
     }
+  }
+  
+  // Format date for display
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    })
   }
 
   return (
@@ -220,34 +356,202 @@ export default function ReferralPage() {
             </div>
           </header>
           
-          <div className="flex items-center justify-center h-[calc(100vh-4rem)]">
-            <Card className="w-full max-w-md mx-auto">
-              <CardContent className="p-6">
-                <div className="flex flex-col space-y-4">
-                  <div className="space-y-2">
-                    <h2 className="text-2xl font-bold text-center">Your Referral Code</h2>
-                    <p className="text-sm text-zinc-400 text-center">
+          <div className="container mx-auto py-6 px-4 md:px-6">
+            <h1 className="text-3xl font-bold mb-6">Referrals</h1>
+            
+            <Tabs defaultValue="manage" className="w-full">
+              <TabsList className="grid w-full md:w-[400px] grid-cols-2">
+                <TabsTrigger value="manage">Manage Code</TabsTrigger>
+                <TabsTrigger value="analytics">Analytics</TabsTrigger>
+              </TabsList>
+              
+              <TabsContent value="manage" className="mt-6">
+                <Card className="w-full max-w-md mx-auto">
+                  <CardHeader>
+                    <CardTitle>Your Referral Code</CardTitle>
+                    <CardDescription>
                       Create a unique referral code for others to use
-                    </p>
-                  </div>
-                  
-                  <div className="flex space-x-2">
-                    <Input
-                      placeholder="Enter your referral code"
-                      value={referralCode}
-                      onChange={(e) => setReferralCode(e.target.value)}
-                      className="flex-1"
-                    />
-                    <Button 
-                      onClick={handleGenerateReferral}
-                      disabled={isLoading}
-                    >
-                      {isLoading ? 'Generating...' : 'Generate'}
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="p-6">
+                    <div className="flex flex-col space-y-4">
+                      <div className="flex space-x-2">
+                        <Input
+                          placeholder="Enter your referral code"
+                          value={referralCode}
+                          onChange={(e) => setReferralCode(e.target.value)}
+                          className="flex-1"
+                        />
+                        <Button 
+                          onClick={handleGenerateReferral}
+                          disabled={isLoading}
+                        >
+                          {isLoading ? 'Generating...' : 'Generate'}
+                        </Button>
+                      </div>
+                      
+                      {referralCode && (
+                        <div className="mt-4 p-4 bg-zinc-900 rounded-md">
+                          <p className="text-sm text-zinc-400 mb-1">Share this link with friends:</p>
+                          <p className="text-sm font-mono bg-zinc-800 p-2 rounded border border-zinc-700 break-all">
+                            {`${window.location.origin}/sign-up?ref=${referralCode}`}
+                          </p>
+                        </div>
+                      )}
+                      
+                      {referralCode && (
+                        <div className="mt-6 space-y-2 border-t border-zinc-800 pt-4">
+                          <p className="text-sm text-zinc-400">
+                            <strong>How it works:</strong> When someone signs up with your referral code and makes a payment, 
+                            you'll receive credit for the referral.
+                          </p>
+                          <p className="text-xs text-zinc-500">
+                            Code for recording a referral during payment processing:
+                          </p>
+                          <div className="text-xs font-mono bg-zinc-800 p-3 rounded border border-zinc-700 overflow-auto">
+                            <pre>{`// Add this to your payment success handler:
+async function recordReferral(userId, referralCode, amount) {
+  const { data, error } = await supabase
+    .from('referrals')
+    .insert([
+      { 
+        referred_by: referralCode,
+        referred_user: userId,
+        amount: amount
+      }
+    ])
+  
+  if (error) {
+    console.error('Error recording referral:', error)
+    return { success: false, error }
+  }
+  
+  return { success: true, data }
+}
+
+// Example usage during payment:
+// recordReferral('user-uuid', 'FRIEND50', 99.99)`}</pre>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              </TabsContent>
+              
+              <TabsContent value="analytics" className="mt-6">
+                {!referralCode ? (
+                  <Card>
+                    <CardContent className="p-6 flex items-center justify-center">
+                      <p className="text-zinc-400">Please generate a referral code first</p>
+                    </CardContent>
+                  </Card>
+                ) : (
+                  <>
+                    <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 mb-8">
+                      {/* Summary Cards */}
+                      <Card>
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-sm font-medium">
+                            Total Users Referred
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          {isAnalyticsLoading ? (
+                            <Skeleton className="h-10 w-20" />
+                          ) : (
+                            <div className="text-3xl font-bold">{totalUsers}</div>
+                          )}
+                        </CardContent>
+                      </Card>
+                      
+                      <Card>
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-sm font-medium">
+                            Total Revenue Generated
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          {isAnalyticsLoading ? (
+                            <Skeleton className="h-10 w-28" />
+                          ) : (
+                            <div className="text-3xl font-bold">
+                              ${totalRevenue.toFixed(2)}
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+                      
+                      <Card>
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-sm font-medium">
+                            Avg. Revenue Per Referral
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          {isAnalyticsLoading ? (
+                            <Skeleton className="h-10 w-24" />
+                          ) : (
+                            <div className="text-3xl font-bold">
+                              ${totalUsers > 0 ? (totalRevenue / totalUsers).toFixed(2) : '0.00'}
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+                    </div>
+                    
+                    {/* Referrals Table */}
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>Referral History</CardTitle>
+                        <CardDescription>
+                          All users who signed up using your referral code
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        {isAnalyticsLoading ? (
+                          <div className="space-y-2">
+                            <Skeleton className="h-6 w-full" />
+                            <Skeleton className="h-12 w-full" />
+                            <Skeleton className="h-12 w-full" />
+                            <Skeleton className="h-12 w-full" />
+                          </div>
+                        ) : referrals.length > 0 ? (
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead>User</TableHead>
+                                <TableHead className="hidden md:table-cell">Date</TableHead>
+                                <TableHead className="text-right">Amount</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {referrals.map((referral) => (
+                                <TableRow key={referral.id}>
+                                  <TableCell className="font-medium">
+                                    {referral.referred_user_email}
+                                  </TableCell>
+                                  <TableCell className="hidden md:table-cell">
+                                    {formatDate(referral.paid_at)}
+                                  </TableCell>
+                                  <TableCell className="text-right">
+                                    ${referral.amount.toFixed(2)}
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        ) : (
+                          <div className="text-center py-6 text-zinc-500">
+                            No referrals found. Share your referral code to get started!
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  </>
+                )}
+              </TabsContent>
+            </Tabs>
           </div>
         </SidebarInset>
       </div>

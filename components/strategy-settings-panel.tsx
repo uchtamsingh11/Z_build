@@ -185,85 +185,83 @@ export function StrategySettingsPanel({
           )}
         </div>
         
-        {/* Date Range Selector (Backtest only) */}
-        {isBacktest && (
-          <div className="space-y-2">
-            <Label className="text-xs uppercase tracking-wider block text-zinc-500 font-mono">
-              Backtest Date Range:
-            </Label>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* From Date */}
-              <div className="space-y-1">
-                <Label className="text-xs text-zinc-500">From Date</Label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className={cn(
-                        "w-full justify-between bg-zinc-900 border-zinc-800 text-zinc-300 font-mono hover:bg-zinc-800 hover:text-white focus:ring-0",
-                        !settings.dateRange?.from && "text-muted-foreground"
-                      )}
-                    >
-                      {settings.dateRange?.from ? (
-                        format(settings.dateRange.from, "PPP")
-                      ) : (
-                        <span>Pick a date</span>
-                      )}
-                      <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0 bg-zinc-900 border-zinc-800" align="start">
-                    <Calendar
-                      mode="single"
-                      selected={settings.dateRange?.from}
-                      onSelect={(date) => handleDateRangeChange('from', date)}
-                      initialFocus
-                      classNames={{
-                        day_button: "text-zinc-300",
-                        day: "text-zinc-300"
-                      }}
-                    />
-                  </PopoverContent>
-                </Popover>
-              </div>
-              
-              {/* To Date */}
-              <div className="space-y-1">
-                <Label className="text-xs text-zinc-500">To Date</Label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className={cn(
-                        "w-full justify-between bg-zinc-900 border-zinc-800 text-zinc-300 font-mono hover:bg-zinc-800 hover:text-white focus:ring-0",
-                        !settings.dateRange?.to && "text-muted-foreground"
-                      )}
-                    >
-                      {settings.dateRange?.to ? (
-                        format(settings.dateRange.to, "PPP")
-                      ) : (
-                        <span>Pick a date</span>
-                      )}
-                      <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0 bg-zinc-900 border-zinc-800" align="start">
-                    <Calendar
-                      mode="single"
-                      selected={settings.dateRange?.to}
-                      onSelect={(date) => handleDateRangeChange('to', date)}
-                      initialFocus
-                      classNames={{
-                        day_button: "text-zinc-300",
-                        day: "text-zinc-300"
-                      }}
-                    />
-                  </PopoverContent>
-                </Popover>
-              </div>
+        {/* Date Range Selector (for both Backtest and Optimization) */}
+        <div className="space-y-2">
+          <Label className="text-xs uppercase tracking-wider block text-zinc-500 font-mono">
+            {isBacktest ? "Backtest Date Range:" : "Optimization Date Range:"}
+          </Label>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* From Date */}
+            <div className="space-y-1">
+              <Label className="text-xs text-zinc-500">From Date</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={cn(
+                      "w-full justify-between bg-zinc-900 border-zinc-800 text-zinc-300 font-mono hover:bg-zinc-800 hover:text-white focus:ring-0",
+                      !settings.dateRange?.from && "text-muted-foreground"
+                    )}
+                  >
+                    {settings.dateRange?.from ? (
+                      format(settings.dateRange.from, "PPP")
+                    ) : (
+                      <span>Pick a date</span>
+                    )}
+                    <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0 bg-zinc-900 border-zinc-800" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={settings.dateRange?.from}
+                    onSelect={(date) => handleDateRangeChange('from', date)}
+                    initialFocus
+                    classNames={{
+                      day_button: "text-zinc-300",
+                      day: "text-zinc-300"
+                    }}
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+            
+            {/* To Date */}
+            <div className="space-y-1">
+              <Label className="text-xs text-zinc-500">To Date</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={cn(
+                      "w-full justify-between bg-zinc-900 border-zinc-800 text-zinc-300 font-mono hover:bg-zinc-800 hover:text-white focus:ring-0",
+                      !settings.dateRange?.to && "text-muted-foreground"
+                    )}
+                  >
+                    {settings.dateRange?.to ? (
+                      format(settings.dateRange.to, "PPP")
+                    ) : (
+                      <span>Pick a date</span>
+                    )}
+                    <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0 bg-zinc-900 border-zinc-800" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={settings.dateRange?.to}
+                    onSelect={(date) => handleDateRangeChange('to', date)}
+                    initialFocus
+                    classNames={{
+                      day_button: "text-zinc-300",
+                      day: "text-zinc-300"
+                    }}
+                  />
+                </PopoverContent>
+              </Popover>
             </div>
           </div>
-        )}
+        </div>
         
         <Separator className="border-zinc-800" />
         

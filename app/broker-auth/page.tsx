@@ -63,17 +63,7 @@ export default async function Page() {
             {/* Grid background overlay */}
             <div className="absolute inset-0 bg-[linear-gradient(to_right,#111_1px,transparent_1px),linear-gradient(to_bottom,#111_1px,transparent_1px)] bg-[size:32px_32px] opacity-20"></div>
             
-            {/* Console header */}
-            <div className="border-b border-zinc-900 p-3 text-zinc-500 text-xs flex items-center bg-zinc-950 sticky top-0 z-10 mb-8">
-              <div className="mr-auto flex items-center">
-                <TerminalIcon className="w-4 h-4 mr-2" />
-                <span>SYSTEM:BROKER_AUTHORIZATION</span>
-              </div>
-              <div>ACTIVE</div>
-              <div className="ml-4 px-2 py-0.5 bg-zinc-950 border border-zinc-900 text-zinc-400">SESSION_ID: {sessionId}</div>
-            </div>
-            
-            <div className="relative z-10">
+            <div className="space-y-10 relative z-10">
               <h1 className="text-3xl font-bold mb-6 text-white">Broker Authorization</h1>
               <BrokerAuthContent />
             </div>
