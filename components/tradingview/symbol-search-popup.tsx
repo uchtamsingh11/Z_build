@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 interface SymbolData {
   DISPLAY_NAME: string;
   EXCH_ID: string;
-  SECURITY_ID: number;
+  SECURITY_ID: string | number;
 }
 
 type Filter = "All" | "Stocks" | "Crypto" | "Futures" | "Forex" | "Indices" | "Bonds" | "Economy" | "Options";
@@ -15,7 +15,7 @@ type Filter = "All" | "Stocks" | "Crypto" | "Futures" | "Forex" | "Indices" | "B
 interface SymbolSearchPopupProps {
   isOpen: boolean;
   onClose: () => void;
-  onSelectSymbol: (symbol: string) => void;
+  onSelectSymbol: (symbol: string, securityId?: string, exchangeSegment?: string) => void;
   isDarkMode: boolean;
   searchQuery: string;
   setSearchQuery: (query: string) => void;
@@ -82,6 +82,30 @@ const SymbolSearchPopup: React.FC<SymbolSearchPopupProps> = ({
     if (exchange.includes('future')) return 'futures';
     if (exchange.includes('index')) return 'index';
     return 'stock'; // Default category
+  };
+
+  // Helper to convert exchange ID to Dhan exchangeSegment format
+  const getExchangeSegment = (exchangeId: string): string => {
+    // Default to NSE_EQ if we can't determine
+    if (!exchangeId) return 'NSE_EQ';
+    
+    const exchange = exchangeId.toUpperCase();
+    
+    if (exchange.includes('NSE')) {
+      if (exchange.includes('FUT') || exchange.includes('OPT')) {
+        return 'NSE_FO';
+      } else if (exchange.includes('CURR')) {
+        return 'NSE_CURR';
+      }
+      return 'NSE_EQ';
+    }
+    
+    if (exchange.includes('BSE')) {
+      return 'BSE_EQ';
+    }
+    
+    // For other exchanges, return as is or map as needed
+    return 'NSE_EQ'; // Default fallback
   };
 
   return (
@@ -185,11 +209,15 @@ const SymbolSearchPopup: React.FC<SymbolSearchPopupProps> = ({
               const symbolText = symbolParts[0];
               // Get symbol type based on exchange
               const symbolType = getSymbolType(item.EXCH_ID || '');
+              // Get Dhan exchange segment format
+              const exchangeSegment = getExchangeSegment(item.EXCH_ID || '');
+              // Convert security ID to string
+              const securityId = item.SECURITY_ID?.toString() || "";
               
               return (
                 <div
                   key={`${item.SECURITY_ID}-${index}`}
-                  onClick={() => onSelectSymbol(symbolText)}
+                  onClick={() => onSelectSymbol(symbolText, securityId, exchangeSegment)}
                   className={`flex cursor-pointer items-center justify-between rounded-md p-3 transition-colors ${
                     isDarkMode
                       ? "hover:bg-zinc-800"
@@ -207,7 +235,10 @@ const SymbolSearchPopup: React.FC<SymbolSearchPopupProps> = ({
                           {item.EXCH_ID}
                         </span>
                       </div>
-                      <div className="text-sm text-gray-500">{item.DISPLAY_NAME}</div>
+                      <div className="text-sm text-gray-500">
+                        {item.DISPLAY_NAME}
+                        {securityId && <span className="ml-2 text-xs opacity-70">(ID: {securityId})</span>}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -249,37 +280,34 @@ const SymbolSearchPopup: React.FC<SymbolSearchPopupProps> = ({
 // Helper functions to get colors and icons based on symbol type
 function getSymbolTypeColor(type: string, isDarkMode: boolean): string {
   switch (type.toLowerCase()) {
-    case "stock":
-      return isDarkMode ? "bg-blue-900/30 text-blue-300" : "bg-blue-100 text-blue-700";
-    case "crypto":
-      return isDarkMode ? "bg-orange-900/30 text-orange-300" : "bg-orange-100 text-orange-700";
-    case "futures":
-      return isDarkMode ? "bg-purple-900/30 text-purple-300" : "bg-purple-100 text-purple-700";
-    case "forex":
-      return isDarkMode ? "bg-green-900/30 text-green-300" : "bg-green-100 text-green-700";
-    case "index":
-      return isDarkMode ? "bg-red-900/30 text-red-300" : "bg-red-100 text-red-700";
-    case "commodity":
-      return isDarkMode ? "bg-yellow-900/30 text-yellow-300" : "bg-yellow-100 text-yellow-700";
+    case 'stock':
+      return isDarkMode ? 'bg-blue-900/30 text-blue-300' : 'bg-blue-100 text-blue-700';
+    case 'crypto':
+      return isDarkMode ? 'bg-orange-900/30 text-orange-300' : 'bg-orange-100 text-orange-700';
+    case 'forex':
+      return isDarkMode ? 'bg-green-900/30 text-green-300' : 'bg-green-100 text-green-700';
+    case 'futures':
+      return isDarkMode ? 'bg-purple-900/30 text-purple-300' : 'bg-purple-100 text-purple-700';
+    case 'index':
+      return isDarkMode ? 'bg-red-900/30 text-red-300' : 'bg-red-100 text-red-700';
     default:
-      return isDarkMode ? "bg-gray-900/30 text-gray-300" : "bg-gray-100 text-gray-700";
+      return isDarkMode ? 'bg-gray-800 text-gray-300' : 'bg-gray-200 text-gray-700';
   }
 }
 
 function getSymbolTypeIcon(type: string): React.ReactNode {
+  // You could import and use actual icons here
   switch (type.toLowerCase()) {
-    case "stock":
+    case 'stock':
       return <span className="text-xs">S</span>;
-    case "crypto":
+    case 'crypto':
       return <span className="text-xs">C</span>;
-    case "futures":
-      return <span className="text-xs">F</span>;
-    case "forex":
+    case 'forex':
       return <span className="text-xs">FX</span>;
-    case "index":
+    case 'futures':
+      return <span className="text-xs">FU</span>;
+    case 'index':
       return <span className="text-xs">I</span>;
-    case "commodity":
-      return <span className="text-xs">CM</span>;
     default:
       return <span className="text-xs">?</span>;
   }

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useRef, useState, useCallback } from "react";
-import { createChart, CandlestickSeries, BarSeries, LineSeries } from "lightweight-charts";
+import { createChart, CandlestickSeries, BarSeries, LineSeries, Time } from "lightweight-charts";
 import { 
   Search, 
   ChevronDown, 
@@ -22,7 +22,9 @@ import {
   MonitorSmartphone,
   Wifi,
   Sun,
-  CalendarRange
+  CalendarRange,
+  AlertCircle,
+  Loader2
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Input } from "@/components/ui/input";
@@ -38,13 +40,33 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { fetchHistoricalData, formatIntervalForDhan } from "@/app/services/dhanApi";
+
+// Types for chart data
+interface ChartDataPoint {
+  time: Time;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume?: number;
+}
+
+interface LineDataPoint {
+  time: Time;
+  value: number;
+}
 
 export default function AdvancedChartsPage() {
   const chartContainerRef = useRef<HTMLDivElement>(null);
+  const chartRef = useRef<any>(null);
+  const seriesRef = useRef<any>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [isDarkMode, setIsDarkMode] = useState(true);
   const [isSearchPopupOpen, setIsSearchPopupOpen] = useState(false);
   const [currentSymbol, setCurrentSymbol] = useState("BTCUSD");
+  const [currentSecurityId, setCurrentSecurityId] = useState("1333"); // Default to RELIANCE
+  const [currentExchangeSegment, setCurrentExchangeSegment] = useState("NSE_EQ");
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [searchError, setSearchError] = useState("");
@@ -57,6 +79,14 @@ export default function AdvancedChartsPage() {
   const [timeframe, setTimeframe] = useState("D");
   const [chartType, setChartType] = useState<"candlestick" | "bar" | "line">("candlestick");
   const [isConnected, setIsConnected] = useState(true);
+  
+  // New state variables for API integration
+  const [chartData, setChartData] = useState<ChartDataPoint[]>([]);
+  const [lineChartData, setLineChartData] = useState<LineDataPoint[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [dataError, setDataError] = useState<string | null>(null);
+  const [fromDate, setFromDate] = useState<string | null>(null);
+  const [toDate, setToDate] = useState<string | null>(null);
 
   // Apply dark theme on initial load
   useEffect(() => {
@@ -69,6 +99,129 @@ export default function AdvancedChartsPage() {
       document.documentElement.classList.remove('dark-mode');
     }
   }, []);
+  
+  // Fetch chart data from Dhan API
+  const fetchChartData = useCallback(async () => {
+    if (!currentSecurityId || !currentExchangeSegment) {
+      console.warn('Missing required parameters for data fetch');
+      return;
+    }
+
+    setIsLoading(true);
+    setDataError(null);
+
+    try {
+      // Convert UI timeframe to API interval
+      let interval = timeframe;
+      if (timeframe === 'D') interval = '1d';
+      if (timeframe === 'W') interval = '1w';
+      if (timeframe === 'M') interval = '1M';
+      
+      // Prepare date range based on selected timeframe from bottom bar
+      let customFromDate: string | undefined;
+      const now = new Date();
+      
+      if (selectedTimeframe === '1D') {
+        const yesterday = new Date(now);
+        yesterday.setDate(yesterday.getDate() - 1);
+        customFromDate = yesterday.toISOString().split('T')[0];
+      } else if (selectedTimeframe === '5D') {
+        const fiveDaysAgo = new Date(now);
+        fiveDaysAgo.setDate(fiveDaysAgo.getDate() - 5);
+        customFromDate = fiveDaysAgo.toISOString().split('T')[0];
+      } else if (selectedTimeframe === '1M') {
+        const oneMonthAgo = new Date(now);
+        oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
+        customFromDate = oneMonthAgo.toISOString().split('T')[0];
+      } else if (selectedTimeframe === '3M') {
+        const threeMonthsAgo = new Date(now);
+        threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+        customFromDate = threeMonthsAgo.toISOString().split('T')[0];
+      } else if (selectedTimeframe === '6M') {
+        const sixMonthsAgo = new Date(now);
+        sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+        customFromDate = sixMonthsAgo.toISOString().split('T')[0];
+      } else if (selectedTimeframe === '1Y') {
+        const oneYearAgo = new Date(now);
+        oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+        customFromDate = oneYearAgo.toISOString().split('T')[0];
+      } else if (selectedTimeframe === '5Y') {
+        const fiveYearsAgo = new Date(now);
+        fiveYearsAgo.setFullYear(fiveYearsAgo.getFullYear() - 5);
+        customFromDate = fiveYearsAgo.toISOString().split('T')[0];
+      } else if (selectedTimeframe === 'YTD') {
+        const startOfYear = new Date(now.getFullYear(), 0, 1);
+        customFromDate = startOfYear.toISOString().split('T')[0];
+      }
+      // 'All' timeframe will use the default behavior of the API which is 30 days
+
+      const formattedInterval = formatIntervalForDhan(interval);
+      
+      console.log(`Fetching ${currentSymbol} data with interval ${formattedInterval}, timeframe ${selectedTimeframe}`);
+      
+      const response = await fetchHistoricalData({
+        symbol: currentSecurityId,
+        exchangeSegment: currentExchangeSegment,
+        interval: formattedInterval,
+        ...(customFromDate && { fromDate: customFromDate }),
+        ...(toDate && { toDate })
+      });
+
+      if (response && response.data && response.data.length > 0) {
+        console.log(`Received ${response.data.length} data points`);
+        
+        // Format data for the chart - ensure time is properly formatted as required by lightweight-charts
+        const candleData = response.data.map((point) => {
+          // Handle timestamp conversion - if it's a number, convert to proper format
+          let timeValue: Time;
+          if (typeof point.time === 'number') {
+            // Convert timestamp to YYYY-MM-DD format (required for lightweight-charts)
+            const date = new Date(point.time);
+            timeValue = date.toISOString().split('T')[0] as Time;
+          } else {
+            // Already a string in the right format
+            timeValue = point.time as Time;
+          }
+          
+          return {
+            time: timeValue,
+            open: point.open,
+            high: point.high,
+            low: point.low,
+            close: point.close,
+            volume: point.volume
+          };
+        });
+        
+        setChartData(candleData);
+        
+        // Also prepare line data for line chart
+        const lineData = candleData.map(point => ({
+          time: point.time,
+          value: point.close
+        }));
+        
+        setLineChartData(lineData);
+        
+        // Update chart if it exists
+        if (seriesRef.current && chartData.length > 0) {
+          if (chartType === 'line') {
+            seriesRef.current.setData(lineData);
+          } else {
+            seriesRef.current.setData(candleData);
+          }
+        }
+      } else {
+        console.warn('No data received from API');
+        setDataError('No data available for the selected time range');
+      }
+    } catch (error) {
+      console.error('Error fetching chart data:', error);
+      setDataError(error instanceof Error ? error.message : 'Failed to load chart data');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [currentSecurityId, currentExchangeSegment, timeframe, selectedTimeframe, chartType, toDate]);
   
   // Session timer
   useEffect(() => {
@@ -231,42 +384,11 @@ export default function AdvancedChartsPage() {
       }
     });
     
-    // Generate one unique data point per day for 30 days
-    const generateMockCandleData = () => {
-      const data = [];
-      const days = 30;
-      let basePrice = 17000;
-      for (let i = 0; i < days; i++) {
-        const date = new Date();
-        date.setDate(date.getDate() - days + i + 1);
-        const time = date.toISOString().slice(0, 10); // YYYY-MM-DD
-        const open = basePrice + Math.random() * 10 - 5;
-        const close = open + Math.random() * 10 - 5;
-        const high = Math.max(open, close) + Math.random() * 5;
-        const low = Math.min(open, close) - Math.random() * 5;
-        data.push({
-          time,
-          open: parseFloat(open.toFixed(2)),
-          high: parseFloat(high.toFixed(2)),
-          low: parseFloat(low.toFixed(2)),
-          close: parseFloat(close.toFixed(2)),
-        });
-        basePrice = close;
-      }
-      return data;
-    };
+    chartRef.current = chart;
     
-    // Generate line chart data (only time and value needed)
-    const generateLineData = () => {
-      const candleData = generateMockCandleData();
-      return candleData.map(item => ({
-        time: item.time,
-        value: item.close
-      }));
-    };
-    
-    const candleData = generateMockCandleData();
-    const lineData = generateLineData();
+    // Use real data if available, otherwise fallback to mock data
+    const dataToUse = chartData.length > 0 ? chartData : generateMockCandleData();
+    const lineDataToUse = lineChartData.length > 0 ? lineChartData : generateLineData();
     
     let series;
     if (chartType === "candlestick") {
@@ -278,24 +400,26 @@ export default function AdvancedChartsPage() {
         wickUpColor: '#089981',
         wickDownColor: '#f23645',
       });
-      series.setData(candleData);
+      series.setData(dataToUse);
     } else if (chartType === "bar") {
       series = chart.addSeries(BarSeries, {
         upColor: '#089981',
         downColor: '#f23645',
       });
-      series.setData(candleData);
+      series.setData(dataToUse);
     } else if (chartType === "line") {
       series = chart.addSeries(LineSeries, {
         color: '#2962FF',
         lineWidth: 2,
       });
-      series.setData(lineData);
+      series.setData(lineDataToUse);
     } else {
       // Default to candlestick if for some reason chartType is not one of the expected values
       series = chart.addSeries(CandlestickSeries, {});
-      series.setData(candleData);
+      series.setData(dataToUse);
     }
+    
+    seriesRef.current = series;
     
     const handleResize = () => {
       chart.resize(container.clientWidth, container.clientHeight);
@@ -305,8 +429,49 @@ export default function AdvancedChartsPage() {
       window.removeEventListener('resize', handleResize);
       document.head.removeChild(style);
       chart.remove();
+      chartRef.current = null;
+      seriesRef.current = null;
     };
-  }, [isDarkMode, chartType]);
+  }, [isDarkMode, chartType, chartData, lineChartData]);
+
+  // Generate fallback mock data when real data is not available yet
+  const generateMockCandleData = (): ChartDataPoint[] => {
+      const data: ChartDataPoint[] = [];
+      const days = 30;
+      let basePrice = 17000;
+      for (let i = 0; i < days; i++) {
+        const date = new Date();
+        date.setDate(date.getDate() - days + i + 1);
+        const timeStr = date.toISOString().split('T')[0];
+        const open = basePrice + Math.random() * 10 - 5;
+        const close = open + Math.random() * 10 - 5;
+        const high = Math.max(open, close) + Math.random() * 5;
+        const low = Math.min(open, close) - Math.random() * 5;
+        data.push({
+          time: timeStr as Time,
+          open: parseFloat(open.toFixed(2)),
+          high: parseFloat(high.toFixed(2)),
+          low: parseFloat(low.toFixed(2)),
+          close: parseFloat(close.toFixed(2)),
+        });
+        basePrice = close;
+      }
+      return data;
+    };
+    
+  // Generate line chart data (only time and value needed)
+  const generateLineData = (): LineDataPoint[] => {
+    const candleData = generateMockCandleData();
+    return candleData.map(item => ({
+      time: item.time,
+      value: item.close
+    }));
+  };
+
+  // Add effect to fetch data when symbol, timeframe, or charting params change
+  useEffect(() => {
+    fetchChartData();
+  }, [currentSecurityId, currentExchangeSegment, timeframe, selectedTimeframe, fetchChartData]);
 
   const handleOpenSearchPopup = () => {
     setIsSearchPopupOpen(true);
@@ -319,11 +484,13 @@ export default function AdvancedChartsPage() {
     setIsSearchPopupOpen(false);
   };
 
-  const handleSelectSymbol = (symbol: string) => {
+  const handleSelectSymbol = (symbol: string, securityId: string, exchangeSegment: string) => {
     setCurrentSymbol(symbol);
+    setCurrentSecurityId(securityId);
+    setCurrentExchangeSegment(exchangeSegment);
     setIsSearchPopupOpen(false);
-    // Here you would normally update the chart with the new symbol data
-    console.log(`Selected symbol: ${symbol}`);
+    console.log(`Selected symbol: ${symbol} (ID: ${securityId}, Exchange: ${exchangeSegment})`);
+    // Data will be fetched via the useEffect hook
   };
 
   const toggleTheme = () => {
@@ -340,13 +507,47 @@ export default function AdvancedChartsPage() {
 
   const handleTimeframeChange = (newTimeframe: string) => {
     setTimeframe(newTimeframe);
-    // In a real app, you would fetch new data based on the timeframe
     console.log(`Timeframe changed to: ${newTimeframe}`);
+    // Data will be fetched via the useEffect hook
   };
 
   const handleChartTypeChange = (newType: "candlestick" | "bar" | "line") => {
     setChartType(newType);
     console.log(`Chart type changed to: ${newType}`);
+    
+    // Update existing chart if we have data and a chart reference
+    if (chartRef.current && seriesRef.current) {
+      // Remove old series
+      chartRef.current.removeSeries(seriesRef.current);
+      
+      // Add new series of the selected type
+      let newSeries;
+      if (newType === "candlestick") {
+        newSeries = chartRef.current.addSeries(CandlestickSeries, {
+          upColor: '#089981',
+          downColor: '#f23645',
+          borderUpColor: '#089981',
+          borderDownColor: '#f23645',
+          wickUpColor: '#089981',
+          wickDownColor: '#f23645',
+        });
+        newSeries.setData(chartData.length > 0 ? chartData : generateMockCandleData());
+      } else if (newType === "bar") {
+        newSeries = chartRef.current.addSeries(BarSeries, {
+          upColor: '#089981',
+          downColor: '#f23645',
+        });
+        newSeries.setData(chartData.length > 0 ? chartData : generateMockCandleData());
+      } else if (newType === "line") {
+        newSeries = chartRef.current.addSeries(LineSeries, {
+          color: '#2962FF',
+          lineWidth: 2,
+        });
+        newSeries.setData(lineChartData.length > 0 ? lineChartData : generateLineData());
+      }
+      
+      seriesRef.current = newSeries;
+    }
   };
 
   const handleToolSelect = (toolName: string) => {
@@ -358,7 +559,7 @@ export default function AdvancedChartsPage() {
   const handleTimeframeSelect = (tf: string) => {
     setSelectedTimeframe(tf);
     console.log(`Selected timeframe: ${tf}`);
-    // Here you would normally fetch data for the selected timeframe
+    // Data will be fetched via the useEffect hook
   };
 
   return (
@@ -375,7 +576,7 @@ export default function AdvancedChartsPage() {
                   className={`w-10 h-10 flex items-center justify-center rounded-sm ${chartType === "candlestick" ? "bg-[#2A2E39] text-white" : "text-zinc-400 hover:bg-[#2A2E39] hover:text-white"}`}
                 >
                   <CandlestickChart size={18} />
-                </button>
+              </button>
               </TooltipTrigger>
               <TooltipContent side="right">
                 <p>Candlestick Chart</p>
@@ -409,8 +610,8 @@ export default function AdvancedChartsPage() {
                 <p>Line Chart</p>
               </TooltipContent>
             </Tooltip>
-          </div>
-
+                </div>
+                
           <Separator className="w-8 my-2 bg-zinc-800" />
 
           {/* Drawing tools section */}
@@ -470,8 +671,8 @@ export default function AdvancedChartsPage() {
                 <p>Indicators</p>
               </TooltipContent>
             </Tooltip>
-          </div>
-
+                    </div>
+                    
           <Separator className="w-8 my-2 bg-zinc-800" />
 
           {/* Bottom tools */}
@@ -531,10 +732,10 @@ export default function AdvancedChartsPage() {
                 <p>Settings</p>
               </TooltipContent>
             </Tooltip>
-          </div>
+                  </div>
         </TooltipProvider>
-      </div>
-      
+              </div>
+          
       {/* Top toolbar - horizontal */}
       <div className="h-12 ml-12 border-b border-zinc-800 bg-[#131722] flex items-center px-4 z-10">
         <div className="flex items-center space-x-3">
@@ -599,10 +800,41 @@ export default function AdvancedChartsPage() {
       </div>
       
       {/* Main chart area */}
-      <div 
+      <div
         className="relative flex-1 ml-12"
         ref={chartContainerRef}
-      />
+      >
+        {/* Loading overlay */}
+        {isLoading && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black/50 z-10">
+            <div className="flex flex-col items-center gap-2">
+              <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
+              <span className="text-white">Loading chart data...</span>
+            </div>
+          </div>
+        )}
+        
+        {/* Error overlay */}
+        {dataError && !isLoading && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black/50 z-10">
+            <div className="flex flex-col items-center gap-2 max-w-md p-4 bg-[#131722] border border-red-500 rounded-md">
+              <AlertCircle className="w-8 h-8 text-red-500" />
+              <span className="text-white text-center">{dataError}</span>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="mt-2" 
+                onClick={() => {
+                  setDataError(null);
+                  fetchChartData();
+                }}
+              >
+                Retry
+              </Button>
+            </div>
+          </div>
+        )}
+      </div>
       
       {/* Timeframe selector bar */}
       <div className="h-10 ml-12 border-t border-zinc-800 bg-[#131722] flex items-center justify-between px-4 z-10">
@@ -658,10 +890,16 @@ export default function AdvancedChartsPage() {
 
       {/* Symbol search popup */}
       {isSearchPopupOpen && (
-        <SymbolSearchPopup
+        <SymbolSearchPopup 
           isOpen={isSearchPopupOpen}
           onClose={handleCloseSearchPopup}
-          onSelectSymbol={handleSelectSymbol}
+          onSelectSymbol={(symbol, securityId, exchangeSegment) => {
+            handleSelectSymbol(
+              symbol, 
+              securityId || "1333", 
+              exchangeSegment || "NSE_EQ"
+            );
+          }}
           isDarkMode={isDarkMode}
           searchQuery={searchQuery}
           setSearchQuery={setSearchQuery}
