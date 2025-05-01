@@ -12,14 +12,11 @@ import {
   PenTool, 
   Gauge, 
   Clock, 
-  ZoomIn, 
   LayoutGrid, 
   Compass, 
   Settings, 
   Save, 
   Folder, 
-  Trash2,
-  MonitorSmartphone,
   Wifi,
   Sun,
   CalendarRange,
@@ -27,19 +24,11 @@ import {
   Loader2
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import SymbolSearchPopup from "@/components/tradingview/symbol-search-popup";
 import { createClient } from '@/lib/supabase/client';
 import { useRouter } from "next/navigation";
-import IndicatorsIcon from "@/components/indicators-icon";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { fetchHistoricalData, formatIntervalForDhan } from "@/app/services/dhanApi";
 
 // Types for chart data

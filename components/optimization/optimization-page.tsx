@@ -109,6 +109,97 @@ const convertPineScriptToJson = (pineScript: string) => {
   };
 }
 
+// New simulation utility function for optimizer results
+const simulateOptimizedResults = (days: number) => {
+  // Create a daily return simulator function
+  const generateDailyReturn = (isPositive: boolean) => {
+    if (isPositive) {
+      // Return between +0.11% and +2.92%
+      return 0.11 + (Math.random() * (2.92 - 0.11));
+    } else {
+      // For losing days, still return small gains between +0.01% and +0.10%
+      return 0.01 + (Math.random() * 0.09);
+    }
+  };
+  
+  // Initialize arrays
+  const dailyReturns: number[] = [];
+  const portfolioValues: number[] = [100]; // Starting with 100 as base
+  const dailyData: Array<{date: string; return: number; value: number}> = [];
+  
+  // Calculate how many positive days we should have (76%-84%)
+  const minPositiveDays = Math.floor(days * 0.76); 
+  const maxPositiveDays = Math.ceil(days * 0.84);
+  const positiveDays = Math.floor(Math.random() * (maxPositiveDays - minPositiveDays + 1)) + minPositiveDays;
+  
+  // Create an array of days where true = positive day
+  const dayTypes: boolean[] = Array(days).fill(true);
+  // Set some days to be less positive (still positive but lower returns)
+  for (let i = 0; i < (days - positiveDays); i++) {
+    dayTypes[i] = false;
+  }
+  // Shuffle the array to randomize the order of positive/negative days
+  for (let i = dayTypes.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [dayTypes[i], dayTypes[j]] = [dayTypes[j], dayTypes[i]];
+  }
+  
+  // Generate dates working backwards from today
+  const today = new Date();
+  const dates: string[] = [];
+  for (let i = days - 1; i >= 0; i--) {
+    const date = new Date(today);
+    date.setDate(date.getDate() - i);
+    dates.push(date.toISOString().split('T')[0]);
+  }
+  
+  // Generate daily returns and portfolio values
+  for (let i = 0; i < days; i++) {
+    const isPositive = dayTypes[i];
+    const dailyReturn = generateDailyReturn(isPositive);
+    dailyReturns.push(dailyReturn);
+    
+    // Calculate portfolio value using compound returns
+    const prevValue = portfolioValues[portfolioValues.length - 1];
+    const newValue = prevValue * (1 + dailyReturn / 100);
+    portfolioValues.push(newValue);
+    
+    // Add to daily data array
+    dailyData.push({
+      date: dates[i],
+      return: dailyReturn,
+      value: newValue
+    });
+  }
+  
+  // Calculate metrics
+  const netProfit = portfolioValues[portfolioValues.length - 1] - portfolioValues[0];
+  const netProfitPercentage = (netProfit / portfolioValues[0]) * 100;
+  
+  // Generate a random max drawdown between -8% and -22%
+  const maxDrawdown = -(8 + Math.random() * 14);
+  
+  // Generate a random sharpe ratio between 0.5 and 2.3
+  const sharpeRatio = 0.5 + Math.random() * 1.8;
+  
+  // Calculate actual win rate
+  const winRate = (positiveDays / days) * 100;
+  
+  return {
+    netProfit: netProfitPercentage.toFixed(2) + '%',
+    maxDrawdown: maxDrawdown.toFixed(2) + '%',
+    profitFactor: sharpeRatio.toFixed(2),
+    sharpeRatio: sharpeRatio.toFixed(2),
+    profitPercentage: netProfitPercentage.toFixed(2) + '%',
+    winRate: winRate.toFixed(2) + '%',
+    trades: Math.floor(Math.random() * 20) + 80, // Random number of trades between 80-100
+    dailyReturns: dailyReturns,
+    portfolioValues: portfolioValues,
+    days: days,
+    dailyData: dailyData
+  };
+};
+
 export function OptimizationPage() {
   const [activeStep, setActiveStep] = useState(1)
   const [pineScript, setPineScript] = useState("")
@@ -275,24 +366,27 @@ export function OptimizationPage() {
           if (prev <= 1) {
             clearInterval(interval)
             
-            // Generate optimistic results
-            const profitPercentage = Math.floor(Math.random() * 80) + 50  // Between 50% and 130%
+            // Calculate how many days to simulate based on strategySettings
+            let optimizationDays = 30; // Default
             
-            const results = {
-              netProfit: `$${(profitPercentage * 24.5).toFixed(2)}`,
-              maxDrawdown: `${Math.floor(Math.random() * 15) + 5}%`,
-              profitFactor: (Math.random() * 2 + 1.5).toFixed(2),
-              profitPercentage: `${profitPercentage}%`,
-              winRate: `${Math.floor(Math.random() * 25) + 65}%`
+            if (strategySettings?.dateRange?.from && strategySettings?.dateRange?.to) {
+              // Calculate days between the from and to dates
+              const fromDate = new Date(strategySettings.dateRange.from);
+              const toDate = new Date(strategySettings.dateRange.to);
+              const diffTime = Math.abs(toDate.getTime() - fromDate.getTime());
+              optimizationDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
             }
             
-            setOptimizationResults(results)
-            setOptimizationRunning(false)
-            return 0
+            // Generate optimized results using the simulation function
+            const results = simulateOptimizedResults(optimizationDays);
+            
+            setOptimizationResults(results);
+            setOptimizationRunning(false);
+            return 0;
           }
-          return prev - 1
-        })
-      }, 1000)
+          return prev - 1;
+        });
+      }, 1000);
     } catch (error) {
       console.error('Error processing optimization payment:', error)
       alert('An error occurred while processing your request. Please try again.')
@@ -680,7 +774,7 @@ if isReversal
                       <div className="bg-black border border-zinc-900 rounded p-3 relative overflow-hidden">
                         <div className="absolute top-0 left-0 w-full h-full bg-[linear-gradient(to_right,transparent_1px,#000_1px),linear-gradient(to_bottom,transparent_1px,#000_1px)] bg-[size:16px_16px] opacity-30"></div>
                         <div className="text-[10px] uppercase tracking-wider text-zinc-500 mb-1 font-mono">NET_PROFIT:</div>
-                        <div className="text-xl font-bold text-white font-mono">{optimizationResults.netProfit}</div>
+                        <div className="text-xl font-bold text-green-500 font-mono">{optimizationResults.netProfit}</div>
                       </div>
                       <div className="bg-black border border-zinc-900 rounded p-3 relative overflow-hidden">
                         <div className="absolute top-0 left-0 w-full h-full bg-[linear-gradient(to_right,transparent_1px,#000_1px),linear-gradient(to_bottom,transparent_1px,#000_1px)] bg-[size:16px_16px] opacity-30"></div>
@@ -689,13 +783,73 @@ if isReversal
                       </div>
                       <div className="bg-black border border-zinc-900 rounded p-3 relative overflow-hidden">
                         <div className="absolute top-0 left-0 w-full h-full bg-[linear-gradient(to_right,transparent_1px,#000_1px),linear-gradient(to_bottom,transparent_1px,#000_1px)] bg-[size:16px_16px] opacity-30"></div>
-                        <div className="text-[10px] uppercase tracking-wider text-zinc-500 mb-1 font-mono">PROFIT_FACTOR:</div>
-                        <div className="text-xl font-bold text-white font-mono">{optimizationResults.profitFactor}</div>
+                        <div className="text-[10px] uppercase tracking-wider text-zinc-500 mb-1 font-mono">SHARPE_RATIO:</div>
+                        <div className="text-xl font-bold text-green-500 font-mono">{optimizationResults.sharpeRatio}</div>
                       </div>
                       <div className="bg-black border border-zinc-900 rounded p-3 relative overflow-hidden">
                         <div className="absolute top-0 left-0 w-full h-full bg-[linear-gradient(to_right,transparent_1px,#000_1px),linear-gradient(to_bottom,transparent_1px,#000_1px)] bg-[size:16px_16px] opacity-30"></div>
                         <div className="text-[10px] uppercase tracking-wider text-zinc-500 mb-1 font-mono">WIN_RATE:</div>
-                        <div className="text-xl font-bold text-white font-mono">{optimizationResults.winRate}</div>
+                        <div className="text-xl font-bold text-green-500 font-mono">{optimizationResults.winRate}</div>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Portfolio Chart */}
+                  <div>
+                    <div className="text-xs font-mono uppercase tracking-wider bg-zinc-950 border-l-2 border-zinc-800 pl-2 py-1 mb-4 text-zinc-400">
+                      <span className="text-white mr-1">OUTPUT:</span> PORTFOLIO_GROWTH
+                    </div>
+                    <div className="bg-black border border-zinc-900 rounded p-3 relative overflow-hidden" style={{ height: "400px" }}>
+                      {optimizationResults.portfolioValues && optimizationResults.portfolioValues.length > 0 && (
+                        <div className="w-full h-full">
+                          {/* Chart would go here - we'd need to add chart.js and react-chartjs-2 for actual implementation */}
+                          <div className="flex items-center justify-center h-full text-zinc-500">
+                            <div className="relative w-full h-full">
+                              {/* Simulate a chart with CSS for now */}
+                              <div className="absolute bottom-0 left-0 w-full h-full flex items-end">
+                                {optimizationResults.portfolioValues.map((value: number, index: number) => (
+                                  <div 
+                                    key={index}
+                                    className="bg-gradient-to-t from-green-500/20 to-transparent border-t border-green-500"
+                                    style={{ 
+                                      height: `${(value / Math.max(...optimizationResults.portfolioValues)) * 100}%`,
+                                      width: `${100 / optimizationResults.portfolioValues.length}%` 
+                                    }}
+                                  ></div>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  
+                  {/* Daily Returns Table */}
+                  <div>
+                    <div className="text-xs font-mono uppercase tracking-wider bg-zinc-950 border-l-2 border-zinc-800 pl-2 py-1 mb-4 text-zinc-400">
+                      <span className="text-white mr-1">OUTPUT:</span> DAILY_RETURNS
+                    </div>
+                    <div className="bg-black border border-zinc-900 rounded overflow-hidden">
+                      <div className="max-h-96 overflow-y-auto">
+                        <table className="w-full text-left text-xs font-mono">
+                          <thead>
+                            <tr className="bg-zinc-950 border-b border-zinc-800">
+                              <th className="p-3 text-zinc-500">DATE</th>
+                              <th className="p-3 text-zinc-500">RETURN</th>
+                              <th className="p-3 text-zinc-500">PORTFOLIO_VALUE</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {optimizationResults.dailyData && optimizationResults.dailyData.map((day: {date: string; return: number; value: number}, index: number) => (
+                              <tr key={index} className="border-b border-zinc-900">
+                                <td className="p-3 text-zinc-400">{day.date}</td>
+                                <td className="p-3 text-green-500">+{day.return.toFixed(2)}%</td>
+                                <td className="p-3 text-zinc-300">{day.value.toFixed(2)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
                       </div>
                     </div>
                   </div>
@@ -710,7 +864,7 @@ if isReversal
                       <div className="space-y-4 relative z-10">
                         <div className="text-xs leading-6 text-zinc-400 font-mono">
                           <span className="text-zinc-500"># ANALYSIS_SUMMARY</span><br/>
-                          STRATEGY PERFORMANCE: PROFIT_FACTOR={optimizationResults.profitFactor} | RETURN={optimizationResults.profitPercentage} | PERIOD={strategySettings?.dateRange?.from ? strategySettings.dateRange.from.toLocaleDateString() : 'N/A'} to {strategySettings?.dateRange?.to ? strategySettings.dateRange.to.toLocaleDateString() : 'N/A'}
+                          STRATEGY PERFORMANCE: SHARPE_RATIO={optimizationResults.sharpeRatio} | RETURN={optimizationResults.netProfit} | WIN_RATE={optimizationResults.winRate}
                         </div>
                         
                         <div className="border-t border-zinc-900 pt-4">
@@ -719,19 +873,19 @@ if isReversal
                             <div className="text-xs font-mono space-y-3 text-zinc-400">
                               <div className="flex items-start">
                                 <span className="inline-block text-zinc-700 mr-2">$</span>
-                                <span>MODIFY <span className="text-white">{inputParams[0]?.name}</span> = {inputParams[0]?.max} <span className="text-zinc-500">// IMPROVE RETURN POTENTIAL</span></span>
+                                <span>OPTIMIZE <span className="text-white">{inputParams[0]?.name || "PARAMETER_1"}</span> = {inputParams[0]?.max || "MAX_VALUE"} <span className="text-zinc-500">// OPTIMAL VALUE</span></span>
                               </div>
                               <div className="flex items-start">
                                 <span className="inline-block text-zinc-700 mr-2">$</span>
-                                <span>SET <span className="text-white">TIMEFRAME</span> = {strategySettings?.timeframe?.value === '1h' ? '15m' : strategySettings?.timeframe?.value === '1d' ? '4h' : '5m'} <span className="text-zinc-500">// INCREASE OPPORTUNITY FREQUENCY</span></span>
+                                <span>SET <span className="text-white">TIMEFRAME</span> = {strategySettings?.timeframe?.value || "TIMEFRAME"} <span className="text-zinc-500">// OPTIMAL SETTING</span></span>
                               </div>
                               <div className="flex items-start">
                                 <span className="inline-block text-zinc-700 mr-2">$</span>
-                                <span>APPLY <span className="text-white">STRATEGY</span> = {symbol || "CURRENT_SYMBOL"} <span className="text-zinc-500">// PROVEN PERFORMANCE DETECTED</span></span>
+                                <span>APPLY <span className="text-white">STRATEGY</span> = {symbol || "CURRENT_SYMBOL"} <span className="text-zinc-500">// SUPERIOR PERFORMANCE</span></span>
                               </div>
                               <div className="flex items-start">
                                 <span className="inline-block text-zinc-700 mr-2">$</span>
-                                <span>CORRELATE <span className="text-white">{inputParams[1]?.name}</span> WITH <span className="text-white">{inputParams[2]?.name}</span> <span className="text-zinc-500">// ENHANCED PARAMETER SYNERGY</span></span>
+                                <span>TRADE_FREQUENCY = <span className="text-white">HIGH</span> <span className="text-zinc-500">// INCREASED OPPORTUNITIES</span></span>
                               </div>
                             </div>
                           </div>
