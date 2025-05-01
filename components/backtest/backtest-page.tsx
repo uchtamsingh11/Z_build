@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useRef, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Textarea } from "@/components/ui/textarea"
 import { Button } from "@/components/ui/button"
@@ -18,121 +18,331 @@ import { StrategySettingsPanel } from "@/components/strategy-settings-panel"
 import { ServicePriceInfo } from "@/components/service-price-info"
 import { ServiceValidationError } from "@/components/service-validation-error"
 import { refreshCoinBalance } from "@/components/coin-balance-display"
+import { Label } from "@/components/ui/label"
+import { Line } from 'react-chartjs-2'
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend,
+  Filler
+} from 'chart.js'
+
+// Register Chart.js components
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend,
+  Filler
+)
+
+// Type definition for backtest results
+interface BacktestResults {
+  netProfit: string;
+  maxDrawdown: string;
+  sharpeRatio: string;
+  winRate: string;
+  trades: number;
+  dailyReturns: number[];
+  portfolioValues: number[];
+  days: number;
+  dailyData?: Array<{date: string; return: number; value: number}>;
+}
 
 // Mock function to simulate Pine script to JSON conversion
 const convertPineScriptToJson = (pineScript: string) => {
-  // In a real implementation, this would parse the Pine script
-  // For demo purposes, we'll extract input parameters using regex
-  
   // Initialize result object
   const result = {
     strategy: "Sample Strategy",
-    inputs: [] as any[]
+    strategy_parameters: [] as any[]
   }
   
   try {
     // Extract strategy name if available
-    const strategyMatch = pineScript.match(/indicator\s*\(\s*["']([^"']*)["']/)
+    const strategyMatch = pineScript.match(/(?:strategy|indicator)\s*\(\s*["']([^"']*)["']/)
     if (strategyMatch && strategyMatch[1]) {
       result.strategy = strategyMatch[1]
     }
     
-    // Regular expressions to match different input types
-    const intRegex = /input\.int\s*\(\s*(\d+)\s*,\s*["']([^"']*)["']\s*(?:,\s*minval\s*=\s*(\d+))?\s*(?:,\s*maxval\s*=\s*(\d+))?\s*\)/g
-    const floatRegex = /input\.float\s*\(\s*(\d*\.?\d+)\s*,\s*["']([^"']*)["']\s*(?:,\s*minval\s*=\s*(\d*\.?\d+))?\s*(?:,\s*maxval\s*=\s*(\d*\.?\d+))?\s*\)/g
-    const genericNumericRegex = /input\s*\(\s*(\d*\.?\d+)\s*,\s*["']([^"']*)["']\s*(?:,\s*minval\s*=\s*(\d*\.?\d+))?\s*(?:,\s*maxval\s*=\s*(\d*\.?\d+))?\s*\)/g
+    // Improved regex to find all input() declarations
+    // This pattern looks for variable assignments with input() calls
+    const inputRegex = /(\w+)\s*=\s*input(?:\.(\w+))?\s*\(([^)]+)\)/g
     
-    // Find variable assignments for inputs
-    const variableRegex = /(\w+)\s*=\s*(input\.int|input\.float|input)\s*\(/g
-    const variableMap = new Map()
-    
-    let varMatch
-    while ((varMatch = variableRegex.exec(pineScript)) !== null) {
-      variableMap.set(varMatch[0].substring(0, varMatch[0].indexOf('=')).trim(), true)
-    }
-    
-    // Extract integer inputs
-    let match
-    while ((match = intRegex.exec(pineScript)) !== null) {
-      // Find variable name for this input if possible
-      const lineStart = pineScript.lastIndexOf('\n', match.index) + 1
-      const line = pineScript.substring(lineStart, match.index + match[0].length)
-      const varNameMatch = line.match(/(\w+)\s*=\s*input\.int/)
+    let match;
+    while ((match = inputRegex.exec(pineScript)) !== null) {
+      const varName = match[1].trim();
+      const inputType = match[2] || "float"; // Default to float if type is not specified
+      const inputParams = match[3];
       
-      const param = {
-        name: varNameMatch ? varNameMatch[1] : `param_${result.inputs.length + 1}`,
-        label: match[2] || `Parameter ${result.inputs.length + 1}`,
-        type: 'integer',
-        default: parseInt(match[1]),
-        min: match[3] ? parseInt(match[3]) : undefined,
-        max: match[4] ? parseInt(match[4]) : undefined
+      // Extract parameters
+      const extractParams = (params: string) => {
+        const result = {
+          defaultValue: '',
+          title: varName,
+          min: undefined as number | undefined,
+          max: undefined as number | undefined,
+          type: inputType
+        };
+        
+        // Split parameters
+        const parts = params.split(',').map(p => p.trim());
+        
+        // Extract default value (first parameter)
+        if (parts.length > 0) {
+          result.defaultValue = parts[0];
+        }
+        
+        // Process other parameters
+        for (let i = 1; i < parts.length; i++) {
+          const part = parts[i];
+          
+          // Named title parameter
+          if (part.startsWith('title=')) {
+            const titleMatch = part.match(/title\s*=\s*["']([^"']*)["']/);
+            if (titleMatch) {
+              result.title = titleMatch[1];
+            }
+          }
+          // Named min parameter
+          else if (part.startsWith('minval=')) {
+            const minMatch = part.match(/minval\s*=\s*([^,\s)]+)/);
+            if (minMatch && !isNaN(parseFloat(minMatch[1]))) {
+              result.min = parseFloat(minMatch[1]);
+            }
+          }
+          // Named max parameter
+          else if (part.startsWith('maxval=')) {
+            const maxMatch = part.match(/maxval\s*=\s*([^,\s)]+)/);
+            if (maxMatch && !isNaN(parseFloat(maxMatch[1]))) {
+              result.max = parseFloat(maxMatch[1]);
+            }
+          }
+          // Positional title (usually second parameter)
+          else if (i === 1 && !part.includes('=')) {
+            const titleMatch = part.match(/["']([^"']*)["']/);
+            if (titleMatch) {
+              result.title = titleMatch[1];
+            }
+          }
+          // Positional min (usually third parameter for numeric types)
+          else if ((inputType === 'float' || inputType === 'int') && i === 2 && !part.includes('=')) {
+            if (!isNaN(parseFloat(part))) {
+              result.min = parseFloat(part);
+            }
+          }
+          // Positional max (usually fourth parameter for numeric types)
+          else if ((inputType === 'float' || inputType === 'int') && i === 3 && !part.includes('=')) {
+            if (!isNaN(parseFloat(part))) {
+              result.max = parseFloat(part);
+            }
+          }
+        }
+        
+        return result;
+      };
+      
+      const params = extractParams(inputParams);
+      
+      // Parse default value based on type
+      let parsedDefault: any;
+      let type = params.type;
+      
+      if (inputType === "float") {
+        // Handle float values
+        parsedDefault = parseFloat(params.defaultValue.replace(/["']/g, ''));
+        if (isNaN(parsedDefault)) parsedDefault = 0.0;
+        type = "float";
+      } 
+      else if (inputType === "int") {
+        // Handle integer values
+        parsedDefault = parseInt(params.defaultValue.replace(/["']/g, ''));
+        if (isNaN(parsedDefault)) parsedDefault = 0;
+        type = "integer";
       }
-      result.inputs.push(param)
-    }
-    
-    // Extract float inputs
-    while ((match = floatRegex.exec(pineScript)) !== null) {
-      // Find variable name for this input if possible
-      const lineStart = pineScript.lastIndexOf('\n', match.index) + 1
-      const line = pineScript.substring(lineStart, match.index + match[0].length)
-      const varNameMatch = line.match(/(\w+)\s*=\s*input\.float/)
-      
-      const param = {
-        name: varNameMatch ? varNameMatch[1] : `param_${result.inputs.length + 1}`,
-        label: match[2] || `Parameter ${result.inputs.length + 1}`,
-        type: 'float',
-        default: parseFloat(match[1]),
-        min: match[3] ? parseFloat(match[3]) : undefined,
-        max: match[4] ? parseFloat(match[4]) : undefined
+      else if (inputType === "bool") {
+        // Handle boolean values
+        parsedDefault = params.defaultValue.toLowerCase() === "true";
+        type = "boolean";
+      } 
+      else if (inputType === "string" || inputType === "symbol" || inputType === "resolution" || inputType === "session") {
+        // Handle string values - remove quotes
+        parsedDefault = params.defaultValue.replace(/^["'](.*)["']$/, '$1');
+        type = "string";
       }
-      result.inputs.push(param)
-    }
-    
-    // Extract generic numeric inputs
-    while ((match = genericNumericRegex.exec(pineScript)) !== null) {
-      // Skip if it's not a numeric input (could be string or bool)
-      if (isNaN(parseFloat(match[1]))) continue
-      
-      // Find variable name for this input if possible
-      const lineStart = pineScript.lastIndexOf('\n', match.index) + 1
-      const line = pineScript.substring(lineStart, match.index + match[0].length)
-      const varNameMatch = line.match(/(\w+)\s*=\s*input\(/)
-      
-      const param = {
-        name: varNameMatch ? varNameMatch[1] : `param_${result.inputs.length + 1}`,
-        label: match[2] || `Parameter ${result.inputs.length + 1}`,
-        type: match[1].includes('.') ? 'float' : 'integer',
-        default: match[1].includes('.') ? parseFloat(match[1]) : parseInt(match[1]),
-        min: match[3] ? (match[3].includes('.') ? parseFloat(match[3]) : parseInt(match[3])) : undefined,
-        max: match[4] ? (match[4].includes('.') ? parseFloat(match[4]) : parseInt(match[4])) : undefined
+      else if (inputType === "source") {
+        // Handle source values
+        parsedDefault = params.defaultValue.replace(/^["'](.*)["']$/, '$1');
+        type = "source";
       }
-      result.inputs.push(param)
+      else if (inputType === "time") {
+        // Handle time values
+        parsedDefault = params.defaultValue;
+        type = "time";
+      }
+      else if (inputType === "color") {
+        // Handle color values
+        parsedDefault = params.defaultValue.replace(/^["'](.*)["']$/, '$1');
+        type = "color";
+      }
+      else {
+        // Handle any other types
+        // Try to parse as number first, then fall back to string
+        const numValue = parseFloat(params.defaultValue.replace(/["']/g, ''));
+        if (!isNaN(numValue) && params.defaultValue.indexOf('"') === -1 && params.defaultValue.indexOf("'") === -1) {
+          parsedDefault = params.defaultValue.includes('.') ? numValue : parseInt(params.defaultValue);
+          type = params.defaultValue.includes('.') ? "float" : "integer";
+        } else {
+          // Handle string literals enclosed in quotes
+          parsedDefault = params.defaultValue.replace(/^["'](.*)["']$/, '$1');
+          type = "string";
+        }
+      }
+      
+      // Create parameter object
+      const param = {
+        name: varName,
+        label: params.title,
+        type: type,
+        default: parsedDefault,
+        min: params.min,
+        max: params.max
+      }
+      
+      result.strategy_parameters.push(param);
     }
     
-    // If no inputs are found, provide some sample inputs for demo purposes
-    if (result.inputs.length === 0) {
-      result.inputs = [
-        { name: "fast_length", label: "Fast Length", type: "integer", default: 12, min: 5, max: 50 },
-        { name: "slow_length", label: "Slow Length", type: "integer", default: 26, min: 10, max: 100 },
-        { name: "signal_length", label: "Signal Length", type: "integer", default: 9, min: 3, max: 30 },
-        { name: "threshold", label: "Threshold", type: "float", default: 0.5, min: 0.1, max: 2.0 }
-      ]
+    // If no inputs are found, return empty parameters array
+    if (result.strategy_parameters.length === 0) {
+      result.strategy_parameters = [];
     }
     
-    return result
+    return {
+      strategy: result.strategy,
+      strategy_parameters: result.strategy_parameters.map(input => ({
+        name: input.name,
+        type: input.type,
+        default: input.default,
+        title: input.label,
+        min: input.min,
+        max: input.max
+      }))
+    };
   } catch (error) {
     console.error("Error parsing Pine script:", error)
-    // Return fallback result if parsing fails
+    // Return empty result if parsing fails
     return {
-      strategy: "Sample Strategy",
-      inputs: [
-        { name: "fast_length", label: "Fast Length", type: "integer", default: 12 },
-        { name: "slow_length", label: "Slow Length", type: "integer", default: 26 },
-        { name: "signal_length", label: "Signal Length", type: "integer", default: 9 },
-        { name: "source_type", label: "Source Type", type: "string", default: "close" }
-      ]
+      strategy: "Unnamed Strategy",
+      strategy_parameters: []
     }
   }
+}
+
+// Simple seeded random number generator for consistent results
+function seededRandom(seed: number) {
+  let nextSeed = seed;
+  
+  return () => {
+    nextSeed = (nextSeed * 9301 + 49297) % 233280;
+    return nextSeed / 233280;
+  };
+}
+
+// Portfolio Chart Component using react-chartjs-2
+function PortfolioChart({ portfolioValues, days }: { portfolioValues: number[], days: number }) {
+  // Create labels (days)
+  const today = new Date();
+  const labels = Array.from({ length: days + 1 }, (_, i) => {
+    const date = new Date(today);
+    date.setDate(date.getDate() - days + i);
+    return date.toLocaleDateString();
+  });
+  
+  const data = {
+    labels,
+    datasets: [
+      {
+        label: 'Portfolio Value',
+        data: portfolioValues,
+        borderColor: '#FF3B30',
+        backgroundColor: 'rgba(255, 59, 48, 0.1)',
+        borderWidth: 2,
+        fill: true,
+        tension: 0.1,
+        pointRadius: 3,
+        pointBackgroundColor: '#FFFFFF'
+      }
+    ]
+  };
+  
+  const options = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        display: true,
+        position: 'top' as const,
+        labels: {
+          color: '#FFFFFF',
+          font: {
+            family: 'monospace'
+          }
+        }
+      },
+      tooltip: {
+        mode: 'index' as const,
+        intersect: false,
+        backgroundColor: '#333',
+        titleColor: '#FFF',
+        bodyColor: '#FFF',
+        borderColor: '#555',
+        borderWidth: 1
+      }
+    },
+    scales: {
+      x: {
+        ticks: {
+          color: '#999',
+          font: {
+            family: 'monospace',
+            size: 10
+          },
+          maxRotation: 45,
+          minRotation: 45
+        },
+        grid: {
+          color: 'rgba(255, 255, 255, 0.1)',
+          borderColor: '#555'
+        }
+      },
+      y: {
+        ticks: {
+          color: '#999',
+          font: {
+            family: 'monospace',
+            size: 10
+          }
+        },
+        grid: {
+          color: 'rgba(255, 255, 255, 0.1)',
+          borderColor: '#555'
+        }
+      }
+    }
+  };
+  
+  return (
+    <div className="w-full h-full bg-zinc-950 rounded overflow-hidden">
+      <Line data={data} options={options} />
+    </div>
+  );
 }
 
 export function BacktestingPage() {
@@ -144,7 +354,7 @@ export function BacktestingPage() {
   const [inputParams, setInputParams] = useState<any[]>([])
   const [backtestRunning, setBacktestRunning] = useState(false)
   const [countdownTime, setCountdownTime] = useState(30)
-  const [backtestResults, setBacktestResults] = useState<any>(null)
+  const [backtestResults, setBacktestResults] = useState<BacktestResults | null>(null)
   
   // Add validation error state
   const [validationError, setValidationError] = useState(false)
@@ -159,10 +369,11 @@ export function BacktestingPage() {
       setParsedScript(result)
       
       // Initialize input parameters with default values and min/max if available
-      const params = result.inputs
-        .filter(input => input.type === 'integer' || input.type === 'float') // Only keep numeric inputs
+      const params = result.strategy_parameters
+        .filter((input: any) => input.type === 'integer' || input.type === 'float') // Only keep numeric inputs
         .map((input: any) => ({
           ...input,
+          label: input.title || input.name,
           min: input.min !== undefined ? input.min : (typeof input.default === 'number' ? input.default * 0.5 : 1),
           max: input.max !== undefined ? input.max : (typeof input.default === 'number' ? input.default * 2 : 100),
           value: input.default
@@ -215,7 +426,7 @@ export function BacktestingPage() {
   
   // Start backtest process
   const handleStartBacktest = async () => {
-    if (!symbol || !strategySettings?.timeframe || !strategySettings?.dateRange?.from || !strategySettings?.dateRange?.to) {
+    if (!symbol || !strategySettings?.timeframe) {
       // In a real app, show validation error
       return
     }
@@ -276,24 +487,109 @@ export function BacktestingPage() {
           if (prev <= 1) {
             clearInterval(interval)
             
-            // Generate optimistic results
-            const months = calculateMonthsBetween(
-              strategySettings.dateRange.from,
-              strategySettings.dateRange.to
-            )
+            // Use the date range from settings if available, otherwise fallback to 30 days
+            let backtestDays = 30;
+            if (strategySettings?.dateRange?.from && strategySettings?.dateRange?.to) {
+              backtestDays = getDaysDifference(strategySettings.dateRange.from, strategySettings.dateRange.to);
+            }
             
-            // More optimistic results for longer timeframes
-            const profitPercentage = months <= 1 ? 
-              Math.floor(Math.random() * 42) + 27 : // Between 27% and 69% for short timeframes
-              Math.floor(Math.random() * 80) + 50   // Between 50% and 130% for longer timeframes
+            // Create a seed based on the symbol and pine script
+            const seed = symbol.length + pineScript.length;
             
-            const results = {
-              netProfit: `$${(profitPercentage * 24.5).toFixed(2)}`,
-              maxDrawdown: `${Math.floor(Math.random() * 15) + 5}%`,
-              profitFactor: (Math.random() * 2 + 1.5).toFixed(2),
-              profitPercentage: `${profitPercentage}%`,
-              winRate: `${Math.floor(Math.random() * 25) + 65}%`,
-              trades: Math.floor(Math.random() * 50) + 20
+            // Initialize seeded random generator for consistent results
+            const random = seededRandom(seed);
+            
+            // Initialize arrays for data
+            const dailyReturns: number[] = [];
+            const portfolioValues: number[] = [100]; // Starting with 100 as initial value
+            const dailyData: Array<{date: string; return: number; value: number}> = [];
+            
+            // Create dates for simulation
+            const today = new Date();
+            let currentDate = new Date();
+            
+            // Use the from date if available, otherwise fallback to calculating from today
+            if (strategySettings?.dateRange?.from) {
+              currentDate = new Date(strategySettings.dateRange.from);
+            } else {
+              currentDate.setDate(today.getDate() - backtestDays);
+            }
+            
+            // Ensure at least 65% of days have negative returns
+            const totalDays = backtestDays;
+            const minNegativeDays = Math.ceil(totalDays * 0.65);
+            let negativeDaysCount = 0;
+            let positiveDaysCount = 0;
+            
+            // Generate all daily returns
+            for (let i = 0; i < totalDays; i++) {
+              // Move date forward by 1 day
+              currentDate.setDate(currentDate.getDate() + 1);
+              const dateStr = currentDate.toISOString().split('T')[0];
+              
+              // Calculate if this day should be negative to ensure we meet the 65% requirement
+              // We need (minNegativeDays - negativeDaysCount) more negative days in (totalDays - i) remaining days
+              const remainingDays = totalDays - i;
+              const remainingRequiredNegative = minNegativeDays - negativeDaysCount;
+              const negativeProb = remainingRequiredNegative / remainingDays;
+              
+              // Determine if this day is positive or negative
+              const isNegative = random() < Math.max(0.65, negativeProb);
+              
+              // Generate returns between -1.17% and 0.92%
+              let dailyReturn;
+              if (isNegative) {
+                // Negative return between -1.17% and 0%
+                dailyReturn = -1.17 + (random() * 1.17);
+                negativeDaysCount++;
+              } else {
+                // Positive return between 0% and 0.92%
+                dailyReturn = random() * 0.92;
+                positiveDaysCount++;
+              }
+              
+              // Round to 2 decimal places
+              dailyReturn = Math.round(dailyReturn * 100) / 100;
+              
+              // Add to return array
+              dailyReturns.push(dailyReturn);
+              
+              // Calculate portfolio value using compound returns
+              const prevValue = portfolioValues[portfolioValues.length - 1];
+              const newValue = prevValue * (1 + dailyReturn / 100);
+              portfolioValues.push(newValue);
+              
+              // Add to daily data array
+              dailyData.push({
+                date: dateStr,
+                return: dailyReturn,
+                value: newValue
+              });
+            }
+            
+            // Calculate net profit (sum of all daily returns)
+            const netProfit = dailyReturns.reduce((sum, val) => sum + val, 0);
+            
+            // Calculate max drawdown (between -30% and -55%)
+            const maxDrawdownValue = -(30 + random() * 25);
+            
+            // Calculate Sharpe Ratio (between -1.2 and -0.3)
+            const sharpeRatioValue = -(0.3 + random() * 0.9);
+            
+            // Calculate win rate (actual percentage of positive days)
+            const winRateValue = (positiveDaysCount / totalDays) * 100;
+            
+            // Generate results object
+            const results: BacktestResults = {
+              netProfit: netProfit.toFixed(2) + '%',
+              maxDrawdown: maxDrawdownValue.toFixed(2) + '%',
+              sharpeRatio: sharpeRatioValue.toFixed(2),
+              winRate: winRateValue.toFixed(2) + '%',
+              trades: Math.floor(random() * 50) + 20,
+              dailyReturns: dailyReturns,
+              portfolioValues: portfolioValues,
+              days: backtestDays,
+              dailyData: dailyData
             }
             
             setBacktestResults(results)
@@ -309,10 +605,61 @@ export function BacktestingPage() {
     }
   }
   
-  // Calculate months between two dates
-  const calculateMonthsBetween = (start: Date, end: Date) => {
-    return (end.getFullYear() - start.getFullYear()) * 12 + 
-           (end.getMonth() - start.getMonth())
+  // Load a sample Pine Script for testing
+  const loadSamplePineScript = () => {
+    const sampleScript = `
+// This Pine Script™ code is subject to the terms of the Mozilla Public License 2.0.
+// © TradingView
+
+//@version=5
+strategy("Sample Strategy with Multiple Input Types", overlay=true)
+
+// Numeric inputs
+factor = input.float(2.0, title="Volatility Factor", minval=0.5, maxval=5.0)
+length = input.int(14, title="RSI Length", minval=1, maxval=50)
+threshold = input(70, title="Threshold")
+
+// Boolean inputs
+useATR = input.bool(true, title="Use ATR for Stop Loss")
+showLabels = input.bool(false, title="Show Labels")
+
+// String/enum inputs
+sourceType = input.string("close", title="Source", options=["open", "high", "low", "close", "hl2", "hlc3", "ohlc4"])
+maType = input.string("SMA", title="MA Type", options=["SMA", "EMA", "WMA"])
+
+// Time inputs
+startTime = input.time(timestamp("2020-01-01"), title="Backtest Start")
+endTime = input.time(timestamp("2023-01-01"), title="Backtest End")
+
+// Color inputs
+bullColor = input.color(color.green, title="Bullish Color")
+bearColor = input.color(color.red, title="Bearish Color")
+
+// Source type
+src = input(close, title="Source")
+
+// Strategy logic
+rsi = ta.rsi(close, length)
+atr = ta.atr(14)
+upper = ta.sma(high, 20) + atr * factor
+lower = ta.sma(low, 20) - atr * factor
+
+if rsi > threshold and useATR
+    strategy.entry("Long", strategy.long)
+
+if rsi < 100 - threshold
+    strategy.close("Long")
+
+plotchar(showLabels ? rsi : na, "RSI Value", "•", location.absolute, bullColor, size=size.tiny)
+    `;
+    
+    setPineScript(sampleScript);
+  }
+  
+  // Get days difference for backtest date range
+  const getDaysDifference = (start: Date, end: Date) => {
+    const diffTime = Math.abs(end.getTime() - start.getTime())
+    return Math.ceil(diffTime / (1000 * 60 * 60 * 24))
   }
   
   // Function to scroll to element
@@ -370,12 +717,25 @@ export function BacktestingPage() {
         </div>
         <Card className="border border-zinc-900 bg-zinc-950 shadow-[0_0_15px_rgba(0,0,0,0.5)]">
           <CardContent className="p-4">
-            <Textarea
-              placeholder="// PASTE PINE SCRIPT HERE"
-              className="min-h-[200px] font-mono text-sm bg-zinc-900 border-zinc-800 text-zinc-300 placeholder:text-zinc-600 focus:border-zinc-700 focus:ring-0"
-              value={pineScript}
-              onChange={(e) => setPineScript(e.target.value)}
-            />
+            {/* Pine Script Input */}
+            <div>
+              <div className="flex justify-between items-center mb-2">
+                <Label className="text-xs uppercase tracking-wider text-zinc-500 font-mono">PINE SCRIPT:</Label>
+                <Button 
+                  onClick={loadSamplePineScript}
+                  variant="outline" 
+                  className="text-xs font-mono uppercase tracking-wider h-6 py-0 px-2 bg-zinc-900 border-zinc-800 text-zinc-300 hover:bg-zinc-800"
+                >
+                  Load Sample
+                </Button>
+              </div>
+              <Textarea
+                placeholder={`Enter your Pine Script code here...\n\ne.g., strategy("My Strategy",...)`}
+                value={pineScript}
+                onChange={(e) => setPineScript(e.target.value)}
+                className="h-72 bg-zinc-900 border-zinc-800 text-zinc-300 font-mono focus:border-zinc-700 focus:ring-0"
+              />
+            </div>
             
             {!parsedScript ? (
               <Button 
@@ -428,64 +788,9 @@ export function BacktestingPage() {
               />
             </div>
             
-            {/* Parameter Configuration */}
-            <div>
-              <div className="text-xs font-mono uppercase tracking-wider bg-zinc-950 border-l-2 border-zinc-800 pl-2 py-1 mb-4 text-zinc-400">
-                <span className="text-white mr-1">CONFIG:</span> STRATEGY_PARAMETERS
-              </div>
-              <Card className="border border-zinc-900 bg-zinc-950 shadow-[0_0_15px_rgba(0,0,0,0.5)]">
-                <CardContent className="p-4">
-                  <div className="space-y-4">
-                    <div className="grid grid-cols-4 gap-4 mb-2 border-b border-zinc-900 pb-2">
-                      <div className="font-mono text-xs uppercase tracking-wider text-zinc-500">PARAMETER</div>
-                      <div className="font-mono text-xs uppercase tracking-wider text-zinc-500">MIN</div>
-                      <div className="font-mono text-xs uppercase tracking-wider text-zinc-500">DEFAULT</div>
-                      <div className="font-mono text-xs uppercase tracking-wider text-zinc-500">MAX</div>
-                    </div>
-                    
-                    {inputParams.map((param, index) => (
-                      <div key={param.name} className="grid grid-cols-4 gap-4 items-center pb-4 border-b border-zinc-900 last:border-0">
-                        <div className="text-xs font-mono text-zinc-400 uppercase">
-                          {param.label || param.name}
-                          <div className="text-[9px] text-zinc-600 truncate">{param.name}</div>
-                        </div>
-                        <div>
-                          <Input 
-                            type="number"
-                            placeholder="MIN"
-                            value={param.min}
-                            onChange={(e) => handleInputChange(index, 'min', parseFloat(e.target.value))}
-                            className="bg-zinc-900 border-zinc-800 text-zinc-300 font-mono focus:ring-0 focus:border-zinc-700 h-8 text-xs"
-                          />
-                        </div>
-                        <div>
-                          <Input 
-                            type="number"
-                            placeholder="DEFAULT"
-                            value={param.value}
-                            onChange={(e) => handleInputChange(index, 'value', parseFloat(e.target.value))}
-                            className="bg-zinc-900 border-zinc-800 text-zinc-300 font-mono focus:ring-0 focus:border-zinc-700 h-8 text-xs"
-                          />
-                        </div>
-                        <div>
-                          <Input 
-                            type="number"
-                            placeholder="MAX"
-                            value={param.max}
-                            onChange={(e) => handleInputChange(index, 'max', parseFloat(e.target.value))}
-                            className="bg-zinc-900 border-zinc-800 text-zinc-300 font-mono focus:ring-0 focus:border-zinc-700 h-8 text-xs"
-                          />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-            
             <Button 
               onClick={handleStartBacktest}
-              disabled={!symbol || !strategySettings?.timeframe || !strategySettings?.dateRange?.from || !strategySettings?.dateRange?.to}
+              disabled={!symbol || !strategySettings?.timeframe}
               className="w-full bg-zinc-950 hover:bg-zinc-900 text-white mt-4 border border-zinc-800 font-mono text-xs uppercase tracking-wider disabled:opacity-50 disabled:cursor-not-allowed"
             >
               START_BACKTEST()
@@ -498,112 +803,145 @@ export function BacktestingPage() {
       )}
       
       {/* Step 3: Backtest Results */}
-      {(backtestRunning || backtestResults) && (
-        <section id="results-section" className="mb-12 relative z-10 px-6">
+      {activeStep === 3 && (
+        <section id="results-section" className="mb-12 relative z-10">
           <div className="flex items-center mb-4">
             <div className="w-6 h-6 flex items-center justify-center bg-zinc-950 border border-zinc-900 mr-2">
               <BarChartIcon className="w-3 h-3 text-white" />
             </div>
-            <h2 className="text-sm font-mono uppercase tracking-wider text-white">BACKTEST_RESULTS</h2>
+            <h2 className="text-sm font-mono uppercase tracking-wider text-white">RESULTS</h2>
           </div>
+          
           <Card className="border border-zinc-900 bg-zinc-950 shadow-[0_0_15px_rgba(0,0,0,0.5)]">
-            <CardContent className="p-4">
+            <CardContent className="p-6">
               {backtestRunning ? (
-                <div className="flex flex-col items-center justify-center py-16 relative">
-                  {/* Terminal-style processing display */}
-                  <div className="w-48 h-48 border-2 border-zinc-800 flex items-center justify-center relative">
-                    <div className="absolute top-0 left-0 w-full h-full bg-[linear-gradient(to_right,transparent_1px,#000_1px),linear-gradient(to_bottom,transparent_1px,#000_1px)] bg-[size:8px_8px]"></div>
-                    <div className="w-36 h-36 border border-zinc-800 flex items-center justify-center relative animate-pulse">
-                      <div className="w-24 h-24 border border-zinc-800 flex items-center justify-center">
-                        <div className="text-3xl font-mono text-white">{countdownTime}</div>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="mt-6 font-mono text-xs uppercase tracking-wider text-zinc-500 flex flex-col items-center">
-                    <div>PROCESSING_BACKTEST</div>
-                    <div className="h-4 w-32 bg-black mt-2 relative overflow-hidden">
-                      <div className="h-full bg-gradient-to-r from-zinc-800 to-zinc-700 absolute animate-[loading_1.5s_ease-in-out_infinite] w-16"></div>
-                    </div>
-                  </div>
+                <div className="text-center py-20">
+                  <div className="inline-block w-16 h-16 border-2 border-t-transparent border-zinc-600 rounded-full animate-spin mb-4"></div>
+                  <p className="text-zinc-400 font-mono mb-1">Running Backtest...</p>
+                  <p className="text-xl font-mono text-white mb-4">{countdownTime}s</p>
                 </div>
               ) : backtestResults ? (
-                <div className="space-y-8">
-                  {/* Results Grid */}
-                  <div>
-                    <div className="text-xs font-mono uppercase tracking-wider bg-zinc-950 border-l-2 border-zinc-800 pl-2 py-1 mb-4 text-zinc-400">
-                      <span className="text-white mr-1">OUTPUT:</span> PERFORMANCE_METRICS
-                    </div>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                      <div className="bg-black border border-zinc-900 rounded p-3 relative overflow-hidden">
-                        <div className="absolute top-0 left-0 w-full h-full bg-[linear-gradient(to_right,transparent_1px,#000_1px),linear-gradient(to_bottom,transparent_1px,#000_1px)] bg-[size:16px_16px] opacity-30"></div>
-                        <div className="text-[10px] uppercase tracking-wider text-zinc-500 mb-1 font-mono">NET_PROFIT:</div>
-                        <div className="text-xl font-bold text-white font-mono">{backtestResults.netProfit}</div>
-                      </div>
-                      <div className="bg-black border border-zinc-900 rounded p-3 relative overflow-hidden">
-                        <div className="absolute top-0 left-0 w-full h-full bg-[linear-gradient(to_right,transparent_1px,#000_1px),linear-gradient(to_bottom,transparent_1px,#000_1px)] bg-[size:16px_16px] opacity-30"></div>
-                        <div className="text-[10px] uppercase tracking-wider text-zinc-500 mb-1 font-mono">DRAWDOWN:</div>
-                        <div className="text-xl font-bold text-zinc-300 font-mono">{backtestResults.maxDrawdown}</div>
-                      </div>
-                      <div className="bg-black border border-zinc-900 rounded p-3 relative overflow-hidden">
-                        <div className="absolute top-0 left-0 w-full h-full bg-[linear-gradient(to_right,transparent_1px,#000_1px),linear-gradient(to_bottom,transparent_1px,#000_1px)] bg-[size:16px_16px] opacity-30"></div>
-                        <div className="text-[10px] uppercase tracking-wider text-zinc-500 mb-1 font-mono">PROFIT_FACTOR:</div>
-                        <div className="text-xl font-bold text-white font-mono">{backtestResults.profitFactor}</div>
-                      </div>
-                      <div className="bg-black border border-zinc-900 rounded p-3 relative overflow-hidden">
-                        <div className="absolute top-0 left-0 w-full h-full bg-[linear-gradient(to_right,transparent_1px,#000_1px),linear-gradient(to_bottom,transparent_1px,#000_1px)] bg-[size:16px_16px] opacity-30"></div>
-                        <div className="text-[10px] uppercase tracking-wider text-zinc-500 mb-1 font-mono">WIN_RATE:</div>
-                        <div className="text-xl font-bold text-white font-mono">{backtestResults.winRate}</div>
+                <>
+                  {/* Results Summary */}
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+                    <div className="bg-zinc-900 p-4 rounded border border-zinc-800">
+                      <div className="text-xs text-zinc-500 font-mono uppercase mb-1">Net Profit</div>
+                      <div className={`text-2xl font-mono ${parseFloat(backtestResults.netProfit) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                        {backtestResults.netProfit}
                       </div>
                     </div>
-                  </div>
-                  
-                  {/* AI Recommendations */}
-                  <div>
-                    <div className="text-xs font-mono uppercase tracking-wider bg-zinc-950 border-l-2 border-zinc-800 pl-2 py-1 mb-4 text-zinc-400">
-                      <span className="text-white mr-1">OUTPUT:</span> SYSTEM_RECOMMENDATIONS
+                    
+                    <div className="bg-zinc-900 p-4 rounded border border-zinc-800">
+                      <div className="text-xs text-zinc-500 font-mono uppercase mb-1">Max Drawdown</div>
+                      <div className="text-2xl font-mono text-red-500">
+                        {backtestResults.maxDrawdown}
+                      </div>
                     </div>
-                    <div className="bg-black border border-zinc-900 rounded p-4 relative overflow-hidden">
-                      <div className="absolute top-0 left-0 w-full h-full bg-[linear-gradient(to_right,transparent_1px,#000_1px),linear-gradient(to_bottom,transparent_1px,#000_1px)] bg-[size:16px_16px] opacity-30"></div>
-                      <div className="space-y-4 relative z-10">
-                        <div className="text-xs leading-6 text-zinc-400 font-mono">
-                          <span className="text-zinc-500"># ANALYSIS_SUMMARY</span><br/>
-                          STRATEGY PERFORMANCE: PROFIT_FACTOR={backtestResults.profitFactor} | RETURN={backtestResults.profitPercentage} | PERIOD={strategySettings.dateRange.from} to {strategySettings.dateRange.to}
-                        </div>
-                        
-                        <div className="border-t border-zinc-900 pt-4">
-                          <div className="text-xs uppercase tracking-wider mb-3 text-zinc-500 font-mono">BACKTEST_DIRECTIVES:</div>
-                          <div className="pl-4 border-l border-zinc-900">
-                            <div className="text-xs font-mono space-y-3 text-zinc-400">
-                              <div className="flex items-start">
-                                <span className="inline-block text-zinc-700 mr-2">$</span>
-                                <span>MODIFY <span className="text-white">{inputParams[0]?.name}</span> = {inputParams[0]?.max} <span className="text-zinc-500">// IMPROVE RETURN POTENTIAL</span></span>
-                              </div>
-                              <div className="flex items-start">
-                                <span className="inline-block text-zinc-700 mr-2">$</span>
-                                <span>SET <span className="text-white">TIMEFRAME</span> = {strategySettings.timeframe === '1h' ? '15m' : strategySettings.timeframe === '1d' ? '4h' : '5m'} <span className="text-zinc-500">// INCREASE OPPORTUNITY FREQUENCY</span></span>
-                              </div>
-                              <div className="flex items-start">
-                                <span className="inline-block text-zinc-700 mr-2">$</span>
-                                <span>APPLY <span className="text-white">STRATEGY</span> = {symbol || "CURRENT_SYMBOL"} <span className="text-zinc-500">// PROVEN PERFORMANCE DETECTED</span></span>
-                              </div>
-                              <div className="flex items-start">
-                                <span className="inline-block text-zinc-700 mr-2">$</span>
-                                <span>CORRELATE <span className="text-white">{inputParams[1]?.name}</span> WITH <span className="text-white">{inputParams[2]?.name}</span> <span className="text-zinc-500">// ENHANCED PARAMETER SYNERGY</span></span>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
+                    
+                    <div className="bg-zinc-900 p-4 rounded border border-zinc-800">
+                      <div className="text-xs text-zinc-500 font-mono uppercase mb-1">Sharpe Ratio</div>
+                      <div className="text-2xl font-mono text-red-500">
+                        {backtestResults.sharpeRatio}
+                      </div>
+                    </div>
+                    
+                    <div className="bg-zinc-900 p-4 rounded border border-zinc-800">
+                      <div className="text-xs text-zinc-500 font-mono uppercase mb-1">Win Rate</div>
+                      <div className="text-2xl font-mono text-zinc-300">
+                        {backtestResults.winRate}
                       </div>
                     </div>
                   </div>
                   
-                  {/* Export Button */}
-                  <div className="flex justify-end">
-                    <Button className="bg-zinc-950 hover:bg-zinc-900 text-white border border-zinc-800 font-mono text-xs uppercase tracking-wider flex items-center">
-                      EXPORT_RESULTS()
+                  {/* Chart */}
+                  <div className="mb-8">
+                    <div className="text-xs text-zinc-500 font-mono uppercase mb-2">PORTFOLIO VALUE</div>
+                    <div className="rounded border border-zinc-800 w-full" style={{ height: "500px" }}>
+                      <PortfolioChart 
+                        portfolioValues={backtestResults.portfolioValues} 
+                        days={backtestResults.days} 
+                      />
+                    </div>
+                  </div>
+                  
+                  {/* Daily Results Table */}
+                  <div className="mb-8">
+                    <div className="text-xs text-zinc-500 font-mono uppercase mb-2">DAILY RESULTS</div>
+                    <div className="bg-zinc-900 rounded border border-zinc-800 overflow-auto max-h-96">
+                      <table className="w-full min-w-full divide-y divide-zinc-800 font-mono text-xs">
+                        <thead className="bg-zinc-950">
+                          <tr>
+                            <th className="px-4 py-2 text-left text-zinc-500 uppercase tracking-wider">Date</th>
+                            <th className="px-4 py-2 text-right text-zinc-500 uppercase tracking-wider">Return</th>
+                            <th className="px-4 py-2 text-right text-zinc-500 uppercase tracking-wider">Portfolio Value</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-zinc-800">
+                          {backtestResults.dailyData?.map((day, index) => (
+                            <tr key={index} className="hover:bg-zinc-800/30">
+                              <td className="px-4 py-2 text-zinc-400">{day.date}</td>
+                              <td className={`px-4 py-2 text-right ${day.return >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                                {day.return >= 0 ? '+' : ''}{day.return.toFixed(2)}%
+                              </td>
+                              <td className="px-4 py-2 text-right text-zinc-300">
+                                {day.value.toFixed(2)}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    <div className="mt-4 text-xs text-zinc-500 font-mono">
+                      <span className="text-zinc-400">Note:</span> This is a simulated backtest. Results are randomly generated based on 
+                      the specified parameters for demonstration purposes. Real backtests would use historical market data and apply your 
+                      strategy logic.
+                    </div>
+                  </div>
+                  
+                  {/* Optimization Panel */}
+                  <div className="mb-8 bg-gradient-to-r from-zinc-900 to-zinc-950 rounded-lg border border-zinc-800 p-6 shadow-lg relative overflow-hidden">
+                    {/* Decorative elements */}
+                    <div className="absolute top-0 right-0 w-24 h-24 bg-blue-500/10 rounded-full -mr-8 -mt-8 blur-2xl"></div>
+                    <div className="absolute bottom-0 left-0 w-32 h-32 bg-purple-500/10 rounded-full -ml-12 -mb-12 blur-2xl"></div>
+                    
+                    <div className="flex flex-col md:flex-row items-center justify-between relative z-10">
+                      <div className="mb-4 md:mb-0 md:mr-6">
+                        <h3 className="text-lg font-mono text-white mb-2 tracking-tight">Want to improve your strategy?</h3>
+                        <p className="text-sm text-zinc-400 max-w-md">
+                          Our AI-powered optimization engine can help you find the best parameters for your strategy to maximize returns and minimize risk.
+                        </p>
+                      </div>
+                      
+                      <div className="flex space-x-3">
+                        <Button 
+                          onClick={() => window.location.href = "/optimization"}
+                          className="bg-zinc-950 hover:bg-zinc-900 text-white border border-zinc-800 font-mono text-xs uppercase tracking-wider px-6 py-2"
+                        >
+                          OPTIMIZE_STRATEGY()
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="flex justify-between">
+                    <Button
+                      onClick={() => {
+                        setActiveStep(2);
+                        setBacktestResults(null);
+                      }}
+                      className="bg-zinc-900 hover:bg-zinc-800 text-white border border-zinc-800 font-mono text-xs uppercase tracking-wider"
+                    >
+                      Back to Settings
+                    </Button>
+                    
+                    <Button
+                      onClick={handleStartBacktest}
+                      className="bg-zinc-950 hover:bg-zinc-900 text-white border border-zinc-800 font-mono text-xs uppercase tracking-wider"
+                    >
+                      Run Again
                     </Button>
                   </div>
-                </div>
+                </>
               ) : null}
             </CardContent>
           </Card>

@@ -18,20 +18,95 @@ import { StrategySettingsPanel } from "@/components/strategy-settings-panel"
 import { ServicePriceInfo } from "@/components/service-price-info"
 import { ServiceValidationError } from "@/components/service-validation-error"
 import { refreshCoinBalance } from "@/components/coin-balance-display"
+import { Label } from "@/components/ui/label"
 
-// Mock function to simulate Pine script to JSON conversion
+// Function to extract input parameters from Pine script
 const convertPineScriptToJson = (pineScript: string) => {
-  // In a real implementation, this would parse the Pine script
-  // For demo purposes, we'll return a mock result with some inputs
-  return {
-    strategy: "Sample Strategy",
-    inputs: [
-      { name: "fast_length", type: "integer", default: 12 },
-      { name: "slow_length", type: "integer", default: 26 },
-      { name: "signal_length", type: "integer", default: 9 },
-      { name: "source_type", type: "string", default: "close" },
-    ]
+  console.log("Parsing Pine script...");
+  
+  // Parse the Pine script to extract input parameters with different ways options can be defined
+  // This improved regex handles more input formats found in Pine scripts
+  const inputRegex = /(?:(\w+)\s*=\s*)?input(?:\.(\w+))?\s*\(\s*([^,)]+)(?:\s*,\s*(?:title\s*=\s*)?["']([^"']+)["'])?(?:\s*,\s*(?:minval\s*=\s*)?([^,)]+))?(?:\s*,\s*(?:maxval\s*=\s*)?([^,)]+))?(?:\s*,\s*(?:options\s*=\s*)?\[(.*?)\])?/g;
+  const strategyRegex = /(?:strategy|indicator)\s*\(\s*["']([^"']+)["']/;
+  
+  // Extract strategy name
+  const strategyMatch = pineScript.match(strategyRegex);
+  const strategyName = strategyMatch ? strategyMatch[1] : "Untitled Strategy";
+  
+  // Extract inputs
+  const inputs = [];
+  let match;
+  
+  while ((match = inputRegex.exec(pineScript)) !== null) {
+    // Extract variable name either from variable assignment or title
+    const varName = match[1] ? match[1].trim() : "";
+    const inputType = match[2] || "float"; // Default to float if type not specified
+    const defaultValue = match[3].trim();
+    const title = match[4] || varName || "Parameter"; // Fallback to varName or generic "Parameter"
+    const minValue = match[5] ? parseFloat(match[5]) : undefined;
+    const maxValue = match[6] ? parseFloat(match[6]) : undefined;
+    const optionsStr = match[7];
+    
+    console.log(`Detected input: ${varName || title}, type: ${inputType}, default: ${defaultValue}`);
+    
+    // Parse options for string inputs
+    let options = [];
+    if (optionsStr && (inputType === 'string' || inputType === 'source')) {
+      // Extract option strings from the options parameter
+      const optionRegex = /["']([^"']+)["']/g;
+      let optionMatch;
+      while ((optionMatch = optionRegex.exec(optionsStr)) !== null) {
+        options.push(optionMatch[1]);
+      }
+    }
+    
+    // Convert the default value based on type
+    let parsedDefault;
+    if (inputType === 'float' || inputType === 'int' || inputType === 'integer') {
+      parsedDefault = parseFloat(defaultValue);
+    } else if (inputType === 'bool' || inputType === 'boolean') {
+      parsedDefault = defaultValue.toLowerCase() === 'true';
+    } else {
+      // For string or other types, remove quotes
+      parsedDefault = defaultValue.replace(/^["'](.*)["']$/, '$1');
+    }
+    
+    // Normalize type names for consistency
+    let normalizedType = inputType;
+    if (inputType === 'integer') normalizedType = 'int';
+    if (inputType === 'boolean') normalizedType = 'bool';
+    
+    inputs.push({
+      name: title,
+      varName: varName || title, // Store original variable name
+      type: normalizedType,
+      default: parsedDefault,
+      minval: minValue,
+      maxval: maxValue,
+      options: options.length > 0 ? options : undefined
+    });
   }
+  
+  console.log(`Found ${inputs.length} inputs in Pine script`);
+  
+  // If no inputs were found, provide a fallback set of mock inputs
+  if (inputs.length === 0) {
+    console.warn("No inputs detected in the Pine script, using defaults - please check your script format");
+    return {
+      strategy: strategyName,
+      inputs: [
+        { name: "fast_length", type: "int", default: 12 },
+        { name: "slow_length", type: "int", default: 26 },
+        { name: "signal_length", type: "int", default: 9 },
+        { name: "source_type", type: "string", default: "close" },
+      ]
+    };
+  }
+  
+  return {
+    strategy: strategyName,
+    inputs: inputs
+  };
 }
 
 export function OptimizationPage() {
@@ -51,25 +126,74 @@ export function OptimizationPage() {
   
   // Handle Pine script conversion
   const handleConvertPineScript = () => {
-    if (!pineScript.trim()) return
+    if (!pineScript.trim()) {
+      alert("Please enter a Pine script before parsing");
+      return;
+    }
     
     try {
-      const result = convertPineScriptToJson(pineScript)
-      setParsedScript(result)
+      const result = convertPineScriptToJson(pineScript);
+      setParsedScript(result);
       
-      // Initialize input parameters with default values
-      const params = result.inputs.map((input: any) => ({
-        ...input,
-        min: typeof input.default === 'number' ? input.default * 0.5 : 1,
-        max: typeof input.default === 'number' ? input.default * 2 : 100,
-        value: input.default
-      }))
+      if (result.inputs.length === 0) {
+        alert("No parameters were detected in your script. Please check your script format and try again.");
+        return;
+      }
       
-      setInputParams(params)
-      setActiveStep(2)
+      // Initialize input parameters with appropriate min/max values based on type
+      const params = result.inputs.map((input: any) => {
+        let minValue, maxValue;
+        
+        // Use defined minval/maxval if available, otherwise calculate based on type
+        if (input.type === 'float' || input.type === 'int') {
+          // For numeric values, use the defined min/max or calculate reasonable values
+          minValue = input.minval !== undefined ? input.minval : 
+                     (typeof input.default === 'number' ? Math.max(input.default * 0.5, 0) : 1);
+          
+          maxValue = input.maxval !== undefined ? input.maxval : 
+                     (typeof input.default === 'number' ? input.default * 2 : 100);
+                     
+          // For integers, ensure min/max are integers
+          if (input.type === 'int') {
+            minValue = Math.floor(minValue);
+            maxValue = Math.ceil(maxValue);
+          }
+        } else if (input.type === 'bool') {
+          // Boolean types don't have a min/max range to optimize
+          minValue = 0;
+          maxValue = 1;
+        } else if (input.type === 'string' || input.type === 'source') {
+          // String types use options instead of min/max
+          minValue = 0;
+          maxValue = 0;
+        } else if (input.type === 'time') {
+          // Time types use date values
+          minValue = 0;
+          maxValue = 0;
+        } else if (input.type === 'color') {
+          // Color values aren't optimizable in this UI
+          minValue = 0;
+          maxValue = 0;
+        } else {
+          // For any other types, we'll use a placeholder
+          minValue = 0;
+          maxValue = 0;
+        }
+        
+        return {
+          ...input,
+          min: minValue,
+          max: maxValue,
+          value: input.default
+        };
+      });
+      
+      console.log("Processed parameters:", params);
+      setInputParams(params);
+      setActiveStep(2);
     } catch (error) {
-      console.error("Error parsing Pine script:", error)
-      // In a real app, show error message to user
+      console.error("Error parsing Pine script:", error);
+      alert("Failed to parse Pine script. Please check your script format and try again.");
     }
   }
   
@@ -181,6 +305,70 @@ export function OptimizationPage() {
            (end.getMonth() - start.getMonth())
   }
   
+  // Load a sample Pine Script for testing
+  const loadSamplePineScript = () => {
+    const sampleScript = `
+// This Pine Script™ code is subject to the terms of the Mozilla Public License 2.0.
+// © TradingView
+
+//@version=5
+strategy("Advanced Trading Strategy with Multiple Parameters", overlay=true)
+
+// Trend detection factors
+trendFactor = input.float(2.5, title="Trend Factor", minval=1.0, maxval=5.0)
+reversalStrength = input.int(3, title="Reversal Strength", minval=1, maxval=10)
+
+// Moving average parameters
+fastLength = input.int(12, title="Fast MA Length", minval=5, maxval=50)
+slowLength = input.int(26, title="Slow MA Length", minval=10, maxval=200)
+maType = input.string("EMA", title="MA Type", options=["SMA", "EMA", "WMA", "VWMA"])
+
+// Volume filter
+useVolume = input.bool(true, title="Use Volume Filter")
+volumeThreshold = input.float(1.5, title="Volume Threshold", minval=0.5, maxval=3.0)
+
+// Price source
+priceSource = input.string("close", title="Price Source", options=["open", "high", "low", "close", "hl2", "hlc3", "ohlc4"])
+
+// Risk management
+riskPercent = input.float(1.0, title="Risk Per Trade (%)", minval=0.1, maxval=5.0)
+multiplier = input.float(2.0, title="Risk/Reward Multiplier", minval=1.0, maxval=4.0)
+
+// Strategy settings
+startDate = input.time(timestamp("2022-01-01"), title="Start Date")
+endDate = input.time(timestamp("2023-01-01"), title="End Date")
+
+// Strategy logic
+src = priceSource == "open" ? open : priceSource == "high" ? high : 
+     priceSource == "low" ? low : priceSource == "close" ? close :
+     priceSource == "hl2" ? (high + low) / 2 : 
+     priceSource == "hlc3" ? (high + low + close) / 3 : 
+     (open + high + low + close) / 4
+
+fastMA = maType == "SMA" ? ta.sma(src, fastLength) : 
+         maType == "EMA" ? ta.ema(src, fastLength) :
+         maType == "WMA" ? ta.wma(src, fastLength) :
+         ta.vwma(src, fastLength)
+
+slowMA = maType == "SMA" ? ta.sma(src, slowLength) : 
+         maType == "EMA" ? ta.ema(src, slowLength) :
+         maType == "WMA" ? ta.wma(src, slowLength) :
+         ta.vwma(src, slowLength)
+
+isTrending = math.abs(fastMA - slowMA) > trendFactor * ta.atr(14)
+volumeOK = not useVolume or volume > ta.sma(volume, 20) * volumeThreshold
+isReversal = ta.change(fastMA, reversalStrength) > 0 and fastMA < slowMA
+
+if crossover(fastMA, slowMA) and isTrending and volumeOK
+    strategy.entry("Long", strategy.long)
+
+if isReversal
+    strategy.close("Long")
+    `;
+    
+    setPineScript(sampleScript);
+  }
+  
   // Function to scroll to element
   const scrollToElement = (elementId: string) => {
     const element = document.getElementById(elementId)
@@ -236,6 +424,16 @@ export function OptimizationPage() {
         </div>
         <Card className="border border-zinc-900 bg-zinc-950 shadow-[0_0_15px_rgba(0,0,0,0.5)]">
           <CardContent className="p-4">
+            <div className="flex justify-between items-center mb-2">
+              <Label className="text-xs uppercase tracking-wider text-zinc-500 font-mono">PINE SCRIPT:</Label>
+              <Button 
+                onClick={loadSamplePineScript}
+                variant="outline" 
+                className="text-xs font-mono uppercase tracking-wider h-6 py-0 px-2 bg-zinc-900 border-zinc-800 text-zinc-300 hover:bg-zinc-800"
+              >
+                Load Sample
+              </Button>
+            </div>
             <Textarea
               placeholder="// PASTE PINE SCRIPT HERE"
               className="min-h-[200px] font-mono text-sm bg-zinc-900 border-zinc-800 text-zinc-300 placeholder:text-zinc-600 focus:border-zinc-700 focus:ring-0"
@@ -312,33 +510,115 @@ export function OptimizationPage() {
                     {inputParams.map((param, index) => (
                       <div key={param.name} className="grid grid-cols-4 gap-4 items-center pb-4 border-b border-zinc-900 last:border-0">
                         <div className="text-xs font-mono text-zinc-400 uppercase">{param.name}</div>
-                        <div>
-                          <Input 
-                            type="number"
-                            placeholder="MIN"
-                            value={param.min}
-                            onChange={(e) => handleInputChange(index, 'min', parseFloat(e.target.value))}
-                            className="bg-zinc-900 border-zinc-800 text-zinc-300 font-mono focus:ring-0 focus:border-zinc-700 h-8 text-xs"
-                          />
-                        </div>
-                        <div>
-                          <Input 
-                            type="number"
-                            placeholder="DEFAULT"
-                            value={param.value}
-                            onChange={(e) => handleInputChange(index, 'value', parseFloat(e.target.value))}
-                            className="bg-zinc-900 border-zinc-800 text-zinc-300 font-mono focus:ring-0 focus:border-zinc-700 h-8 text-xs"
-                          />
-                        </div>
-                        <div>
-                          <Input 
-                            type="number"
-                            placeholder="MAX"
-                            value={param.max}
-                            onChange={(e) => handleInputChange(index, 'max', parseFloat(e.target.value))}
-                            className="bg-zinc-900 border-zinc-800 text-zinc-300 font-mono focus:ring-0 focus:border-zinc-700 h-8 text-xs"
-                          />
-                        </div>
+                        
+                        {(param.type === 'float' || param.type === 'int') ? (
+                          // Numeric inputs (float, int)
+                          <>
+                            <div>
+                              <Input 
+                                type="number"
+                                placeholder="MIN"
+                                value={param.min}
+                                onChange={(e) => handleInputChange(index, 'min', parseFloat(e.target.value))}
+                                className="bg-zinc-900 border-zinc-800 text-zinc-300 font-mono focus:ring-0 focus:border-zinc-700 h-8 text-xs"
+                              />
+                            </div>
+                            <div>
+                              <Input 
+                                type="number"
+                                placeholder="DEFAULT"
+                                value={param.value}
+                                onChange={(e) => handleInputChange(index, 'value', parseFloat(e.target.value))}
+                                className="bg-zinc-900 border-zinc-800 text-zinc-300 font-mono focus:ring-0 focus:border-zinc-700 h-8 text-xs"
+                              />
+                            </div>
+                            <div>
+                              <Input 
+                                type="number"
+                                placeholder="MAX"
+                                value={param.max}
+                                onChange={(e) => handleInputChange(index, 'max', parseFloat(e.target.value))}
+                                className="bg-zinc-900 border-zinc-800 text-zinc-300 font-mono focus:ring-0 focus:border-zinc-700 h-8 text-xs"
+                                step={param.type === 'int' ? "1" : "0.01"}
+                              />
+                            </div>
+                          </>
+                        ) : param.type === 'bool' ? (
+                          // Boolean inputs
+                          <div className="col-span-3 flex items-center space-x-2">
+                            <div className="text-xs text-zinc-500 mr-8">OPTIMIZE: </div>
+                            <div className="border border-zinc-800 bg-zinc-900 rounded px-3 py-1 text-zinc-300 text-xs font-mono">
+                              {param.value ? "TRUE" : "FALSE"}
+                            </div>
+                            <div className="text-xs text-zinc-500">→</div>
+                            <div className="border border-zinc-800 bg-zinc-900 rounded px-3 py-1 text-zinc-300 text-xs font-mono">
+                              {!param.value ? "TRUE" : "FALSE"}
+                            </div>
+                            <div className="ml-auto">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleInputChange(index, 'value', !param.value)}
+                                className="bg-zinc-900 border-zinc-800 text-xs text-zinc-300 h-8 hover:bg-zinc-800"
+                              >
+                                Toggle Optimization
+                              </Button>
+                            </div>
+                          </div>
+                        ) : param.type === 'string' || param.type === 'source' ? (
+                          // String/source inputs
+                          <div className="col-span-3">
+                            <div className="text-xs text-zinc-500 mb-2">Options:</div>
+                            <Select
+                              value={String(param.value)}
+                              onValueChange={(value) => handleInputChange(index, 'value', value)}
+                            >
+                              <SelectTrigger className="bg-zinc-900 border-zinc-800 text-zinc-300 font-mono focus:ring-0 focus:border-zinc-700 h-8">
+                                <SelectValue placeholder="Select option" />
+                              </SelectTrigger>
+                              <SelectContent className="bg-zinc-900 border-zinc-800 text-zinc-300 font-mono">
+                                {/* If options are available in the input, use those */}
+                                {param.options ? (
+                                  param.options.map((option: string) => (
+                                    <SelectItem key={option} value={option}>{option}</SelectItem>
+                                  ))
+                                ) : (
+                                  <>
+                                    {/* Default options if none specified */}
+                                    <SelectItem value={String(param.value)}>{param.value}</SelectItem>
+                                    <SelectItem value="alternative">Alternative Option</SelectItem>
+                                  </>
+                                )}
+                              </SelectContent>
+                            </Select>
+                            <div className="text-xs text-zinc-500 mt-2">
+                              Not optimizable - will use selected value
+                            </div>
+                          </div>
+                        ) : param.type === 'time' ? (
+                          // Time inputs - not optimizable
+                          <div className="col-span-3 text-xs text-zinc-400">
+                            <div className="border border-zinc-800 bg-zinc-900 rounded px-3 py-2">
+                              {new Date(param.value).toLocaleDateString()} (Not optimizable)
+                            </div>
+                          </div>
+                        ) : param.type === 'color' ? (
+                          // Color inputs - not optimizable
+                          <div className="col-span-3 text-xs text-zinc-400">
+                            <div className="flex items-center space-x-2">
+                              <div className="w-4 h-4 border border-zinc-700" style={{ backgroundColor: param.value }}></div>
+                              <span>Color value (Not optimizable)</span>
+                            </div>
+                          </div>
+                        ) : (
+                          // Other input types
+                          <div className="col-span-3 text-xs text-zinc-500">
+                            <div className="border border-zinc-800 bg-zinc-900 rounded px-3 py-2">
+                              Value: {String(param.value)} (Type: {param.type})
+                            </div>
+                            <div className="mt-1">This parameter type cannot be optimized</div>
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>

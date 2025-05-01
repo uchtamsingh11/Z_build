@@ -61,17 +61,7 @@ export default async function ChartsPage() {
           {/* Grid background overlay */}
           <div className="absolute inset-0 bg-[linear-gradient(to_right,#111_1px,transparent_1px),linear-gradient(to_bottom,#111_1px,transparent_1px)] bg-[size:32px_32px] opacity-20"></div>
           
-          {/* Console header */}
-          <div className="border-b border-zinc-900 p-3 text-zinc-500 text-xs flex items-center bg-zinc-950 sticky top-0 z-10 mb-8">
-            <div className="mr-auto flex items-center">
-              <TerminalIcon className="w-4 h-4 mr-2" />
-              <span>SYSTEM:CHARTS</span>
-            </div>
-            <div>ACTIVE</div>
-            <div className="ml-4 px-2 py-0.5 bg-zinc-950 border border-zinc-900 text-zinc-400">SESSION_ID: {sessionId}</div>
-          </div>
-          
-          <div className="relative z-10">
+          <div className="space-y-10 relative z-10">
             <div className="flex items-center mb-6">
               <div className="w-6 h-6 flex items-center justify-center bg-zinc-950 border border-zinc-900 mr-2">
                 <BarChart3 className="w-3 h-3 text-white" />
@@ -79,35 +69,31 @@ export default async function ChartsPage() {
               <h2 className="text-sm font-mono uppercase tracking-wider text-white">Advanced AI Charting Suite</h2>
             </div>
             
-            <div className="space-y-10 max-w-6xl mx-auto px-4">
-              {/* Button Section */}
-              <div className="text-center">
-                <a
-                  href="/charts/advanced"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center justify-center px-8 py-3 bg-black border border-white rounded-md text-lg font-medium text-white"
-                >
-                  Launch Charting Suite
-                  <svg className="w-5 h-5 ml-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
-                  </svg>
-                </a>
-              </div>
+            <div className="text-center">
+              <a
+                href="/charts/advanced"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center justify-center px-8 py-3 bg-black border border-white rounded-md text-lg font-medium text-white"
+              >
+                Launch Charting Suite
+                <svg className="w-5 h-5 ml-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                </svg>
+              </a>
+            </div>
 
-              {/* Features List */}
-              <div className="max-w-2xl mx-auto">
-                <ul className="text-white space-y-3 list-disc pl-6">
-                  <li>Unlimited access to enterprise-grade charting software — completely free</li>
-                  <li>Harness military-grade AI to generate high-performance trading strategies in seconds</li>
-                  <li>Full multi-language support: code in Pine Script, JavaScript, or Python with zero limitations</li>
-                  <li>Execute strategies at institutional speed via our proprietary algo trading engine</li>
-                  <li>Exclusive access to our comprehensive quantitative trading methodology eBook</li>
-                  <li>Seamless integration with 25+ global brokers for frictionless trade execution</li>
-                  <li>Transform your proprietary trading logic into executable algorithms without compromise</li>
-                  <li>Monetize your expertise by creating and selling battle-tested strategies in our marketplace</li>
-                </ul>
-              </div>
+            <div className="max-w-2xl mx-auto">
+              <ul className="text-white space-y-3 list-disc pl-6">
+                <li>Unlimited access to enterprise-grade charting software — completely free</li>
+                <li>Harness military-grade AI to generate high-performance trading strategies in seconds</li>
+                <li>Full multi-language support: code in Pine Script, JavaScript, or Python with zero limitations</li>
+                <li>Execute strategies at institutional speed via our proprietary algo trading engine</li>
+                <li>Exclusive access to our comprehensive quantitative trading methodology eBook</li>
+                <li>Seamless integration with 25+ global brokers for frictionless trade execution</li>
+                <li>Transform your proprietary trading logic into executable algorithms without compromise</li>
+                <li>Monetize your expertise by creating and selling battle-tested strategies in our marketplace</li>
+              </ul>
             </div>
           </div>
         </SidebarInset>
