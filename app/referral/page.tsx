@@ -356,7 +356,8 @@ export default function ReferralPage() {
             </div>
           </header>
           
-          <div className="container mx-auto py-6 px-4 md:px-6">
+          <div className="flex-1 px-4 py-6 bg-black min-h-screen relative">
+          {/* <div className="absolute inset-0 bg-[linear-gradient(to_right,#111_1px,transparent_1px),linear-gradient(to_bottom,#111_1px,transparent_1px)] bg-[size:32px_32px] opacity-20"></div> */}
             <h1 className="text-3xl font-bold mb-6">Referrals</h1>
             
             <Tabs defaultValue="manage" className="w-full">
@@ -398,42 +399,7 @@ export default function ReferralPage() {
                           </p>
                         </div>
                       )}
-                      
-                      {referralCode && (
-                        <div className="mt-6 space-y-2 border-t border-zinc-800 pt-4">
-                          <p className="text-sm text-zinc-400">
-                            <strong>How it works:</strong> When someone signs up with your referral code and makes a payment, 
-                            you'll receive credit for the referral.
-                          </p>
-                          <p className="text-xs text-zinc-500">
-                            Code for recording a referral during payment processing:
-                          </p>
-                          <div className="text-xs font-mono bg-zinc-800 p-3 rounded border border-zinc-700 overflow-auto">
-                            <pre>{`// Add this to your payment success handler:
-async function recordReferral(userId, referralCode, amount) {
-  const { data, error } = await supabase
-    .from('referrals')
-    .insert([
-      { 
-        referred_by: referralCode,
-        referred_user: userId,
-        amount: amount
-      }
-    ])
-  
-  if (error) {
-    console.error('Error recording referral:', error)
-    return { success: false, error }
-  }
-  
-  return { success: true, data }
-}
 
-// Example usage during payment:
-// recordReferral('user-uuid', 'FRIEND50', 99.99)`}</pre>
-                          </div>
-                        </div>
-                      )}
                     </div>
                   </CardContent>
                 </Card>

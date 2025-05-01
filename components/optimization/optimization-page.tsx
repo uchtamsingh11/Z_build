@@ -474,7 +474,7 @@ if isReversal
   return (
     <div className="space-y-12 max-w-5xl mx-auto font-mono bg-black min-h-screen relative">
       {/* Grid background overlay */}
-      <div className="absolute inset-0 bg-[linear-gradient(to_right,#111_1px,transparent_1px),linear-gradient(to_bottom,#111_1px,transparent_1px)] bg-[size:32px_32px] opacity-20"></div>
+      {/* <div className="absolute inset-0 bg-[linear-gradient(to_right,#111_1px,transparent_1px),linear-gradient(to_bottom,#111_1px,transparent_1px)] bg-[size:32px_32px] opacity-20"></div> */}
       
       {/* Validation Error Dialog */}
       <ServiceValidationError 

@@ -8,7 +8,7 @@ export default function Testimonials() {
     return (
         <section className="bg-black py-16 md:py-32 relative">
             {/* Grid background overlay */}
-            <div className="absolute inset-0 bg-[linear-gradient(to_right,#111_1px,transparent_1px),linear-gradient(to_bottom,#111_1px,transparent_1px)] bg-[size:32px_32px] opacity-20"></div>
+            {/* <div className="absolute inset-0 bg-[linear-gradient(to_right,#111_1px,transparent_1px),linear-gradient(to_bottom,#111_1px,transparent_1px)] bg-[size:32px_32px] opacity-20"></div> */}
             
             <div className="mx-auto max-w-6xl space-y-8 px-6 md:space-y-16 relative z-10">
                 <div className="relative z-10 mx-auto max-w-xl space-y-6 text-center md:space-y-12 mb-8">

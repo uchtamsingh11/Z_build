@@ -65,7 +65,8 @@ export default async function Page() {
             </div>
           </header>
           
-          {/* Grid background overlay */}
+          <div className="flex-1 px-4 py-6 bg-black min-h-screen relative">
+            {/* Grid background overlay */}
           <div className="absolute inset-0 bg-[linear-gradient(to_right,#111_1px,transparent_1px),linear-gradient(to_bottom,#111_1px,transparent_1px)] bg-[size:32px_32px] opacity-20"></div>
           
           <div className="space-y-10 relative z-10">
@@ -81,6 +82,7 @@ export default async function Page() {
                 {/* Content for Trade Logs page */}
               </CardContent>
             </Card>
+          </div>
           </div>
         </SidebarInset>
       </div>

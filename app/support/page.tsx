@@ -37,7 +37,7 @@ export default async function Page() {
       <div className="grid min-h-screen w-full grid-cols-[auto_1fr] bg-black text-white font-mono">
         <AppSidebar />
         <SidebarInset>
-          <header className="flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-[[data-collapsible=icon]]/sidebar-wrapper:h-12 border-b border-zinc-900">
+          <header className="flex sticky h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-[[data-collapsible=icon]]/sidebar-wrapper:h-12 border-b border-zinc-900">
             <div className="flex items-center gap-2 px-4">
               <SidebarTrigger className="-ml-1" />
               <Separator orientation="vertical" className="mr-2 h-4" />
@@ -60,9 +60,10 @@ export default async function Page() {
               <CoinBalanceDisplay />
             </div>
           </header>
-          
+
+         <div className="flex-1 px-4 py-6 bg-black min-h-screen relative">    
           {/* Grid background overlay */}
-          <div className="absolute inset-0 bg-[linear-gradient(to_right,#111_1px,transparent_1px),linear-gradient(to_bottom,#111_1px,transparent_1px)] bg-[size:32px_32px] opacity-20"></div>
+          {/* <div className="absolute inset-0 bg-[linear-gradient(to_right,#111_1px,transparent_1px),linear-gradient(to_bottom,#111_1px,transparent_1px)] bg-[size:32px_32px] opacity-20"></div> */}
           
           <div className="space-y-10 relative z-10">
             <div className="flex items-center mb-6">
@@ -173,6 +174,7 @@ export default async function Page() {
                 For security concerns or account issues, please use the secure messaging options above rather than sharing sensitive information.
               </p>
             </div>
+          </div>
           </div>
         </SidebarInset>
       </div>
