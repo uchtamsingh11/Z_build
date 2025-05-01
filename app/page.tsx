@@ -69,7 +69,7 @@ export default function Home() {
                                     preset="fade-in-blur"
                                     speedSegment={0.3}
                                     as="h1"
-                                    className="mt-8 text-balance text-6xl md:text-7xl lg:mt-16 xl:text-[5.25rem] font-mono uppercase tracking-wider">
+                                    className="mt-8 text-balance text-6xl md:text-5xl lg:mt-16 xl:text-[4.25rem] font-mono uppercase tracking-wider">
                                     ALGOZ: TRADING_SMARTER
                                 </TextEffect>
                                 <TextEffect
@@ -78,7 +78,7 @@ export default function Home() {
                                     speedSegment={0.3}
                                     delay={0.5}
                                     as="p"
-                                    className="mx-auto mt-8 max-w-2xl text-balance text-lg text-zinc-400 break-words text-wrap">
+                                    className="mx-auto mt-8 max-w-2xl text-balance text-md text-zinc-400 break-words text-wrap">
                                     HARNESS THE POWER OF ALGORITHMIC TRADING WITH OUR INTELLIGENT PLATFORM. OPTIMIZE YOUR STRATEGIES, MINIMIZE EMOTIONAL DECISIONS, AND MAXIMIZE YOUR RETURNS.
                                 </TextEffect>
 
@@ -97,11 +97,11 @@ export default function Home() {
                                     className="mt-12 flex flex-col items-center justify-center gap-2 md:flex-row">
                                     <div
                                         key={1}
-                                        className="bg-zinc-800/50 rounded-xl border border-zinc-700 p-0.5">
+                                        className="rounded-md p-0.5">
                                         <Button
                                             asChild
                                             size="lg"
-                                            className="rounded-xl px-5 text-base bg-zinc-800 hover:bg-zinc-700 text-white font-mono">
+                                            className="rounded-md px-5 text-base bg-white hover:bg-zinc-100 text-black font-mono">
                                             <Link href="/auth">
                                                 <span className="text-nowrap uppercase">START_TRADING</span>
                                             </Link>
@@ -112,7 +112,7 @@ export default function Home() {
                                         asChild
                                         size="lg"
                                         variant="ghost"
-                                        className="h-10.5 rounded-xl px-5 text-white border border-zinc-700 hover:bg-zinc-800 font-mono">
+                                        className="h-10.5 rounded-md px-5 text-white border border-zinc-700 hover:bg-zinc-800 font-mono">
                                         <Link href="/learn-more">
                                             <span className="text-nowrap uppercase">LEARN_MORE</span>
                                         </Link>
@@ -127,7 +127,7 @@ export default function Home() {
                 <div id="features">
                     <Features />
                 </div>
-                <IntegrationsSection />
+                {/* <IntegrationsSection /> */}
                 <Testimonials />
                 
                 {/* Pricing heading */}

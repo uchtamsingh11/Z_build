@@ -23,7 +23,7 @@ export default function Footer() {
       {/* <div className="absolute inset-0 bg-[linear-gradient(to_right,#111_1px,transparent_1px),linear-gradient(to_bottom,#111_1px,transparent_1px)] bg-[size:32px_32px] opacity-20"></div> */}
       
       <div className="container mx-auto px-4 py-12 md:px-6 lg:px-8 relative z-10">
-        <div className="grid gap-12 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-12 md:grid-cols-2 lg:grid-cols-3 max-w-6xl mx-auto">
           <div className="relative">
             <div className="flex items-center mb-4">
               <TerminalIcon className="w-6 h-6 mr-2 text-white" />

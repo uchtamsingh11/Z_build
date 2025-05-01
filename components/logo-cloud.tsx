@@ -10,7 +10,7 @@ export default function LogoCloud() {
             {/* Grid background overlay */}
             {/* <div className="absolute inset-0 bg-[linear-gradient(to_right,#111_1px,transparent_1px),linear-gradient(to_bottom,#111_1px,transparent_1px)] bg-[size:32px_32px] opacity-20"></div> */}
             
-            <div className="group relative m-auto max-w-7xl px-6 z-10">
+            <div className="group relative m-auto max-w-6xl px-6 z-10">
                 <div className="flex flex-col items-center md:flex-row">
                     <div className="md:max-w-44 md:border-r md:border-zinc-800 md:pr-6">
                         <div className="flex items-center mb-2">

@@ -10,7 +10,7 @@ export default function Features() {
             {/* Grid background overlay */}
             {/* <div className="absolute inset-0 bg-[linear-gradient(to_right,#111_1px,transparent_1px),linear-gradient(to_bottom,#111_1px,transparent_1px)] bg-[size:32px_32px] opacity-20"></div> */}
             
-            <div className="mx-auto max-w-5xl px-6 relative z-10">
+            <div className="mx-auto max-w-6xl px-6 relative z-10">
                 <div className="text-center mb-12">
                     <div className="flex items-center justify-center mb-3">
                         <div className="w-8 h-8 flex items-center justify-center bg-zinc-950 border border-zinc-900 mr-3">

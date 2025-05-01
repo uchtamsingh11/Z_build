@@ -48,11 +48,12 @@ export default function DashboardPricing() {
     };
 
     return (
-        <div className="max-w-6xl mx-auto pb-24">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {/* Basic Plan */}
-                <Card className="border-zinc-800 bg-zinc-900/50 shadow-xl hover:shadow-2xl transition-all duration-300 relative overflow-hidden">
-                    <CardHeader className="pt-8 px-6">
+        <div className="bg-black py-16 md:py-32 relative">
+            <div className="mx-auto max-w-6xl px-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    {/* Basic Plan */}
+                    <Card className="border-zinc-800 bg-zinc-900/50 shadow-xl hover:shadow-2xl transition-all duration-300 relative overflow-hidden">
+                        <CardHeader className="pt-8 px-6">
                         <div className="mb-4 flex items-center">
                             <div className="w-10 h-10 rounded-full bg-zinc-800 flex items-center justify-center mr-4">
                                 <Coins className="h-5 w-5 text-white" />
@@ -168,6 +169,7 @@ export default function DashboardPricing() {
                     </CardFooter>
                 </Card>
             </div>
+        </div>
             
             <div className="mx-auto max-w-6xl px-6 py-4 text-center">
                 <p className="text-sm text-zinc-400 font-mono">YOU_CAN_USE_THIS_COIN_ACROSS_25_PLUS_PRODUCTS_AND_SERVICES</p>
