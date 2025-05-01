@@ -19,34 +19,22 @@ import { useState, useEffect, useCallback } from 'react'
 import { createBrowserClient } from '@supabase/ssr'
 import { User } from '@supabase/supabase-js'
 import { CoinBalanceDisplay } from "@/components/coin-balance-display"
-import TransactionHistoryModal from "@/components/transaction-history-modal"
 import { 
   AlertCircle, 
   BadgeCheck, 
-  Clock,
   Coins, 
   CreditCard, 
-  TerminalIcon,
-  Info,
   Loader2
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { useRouter } from 'next/navigation'
 
 export default function Page() {
   const [user, setUser] = useState<User | null>(null)
   const [sessionId, setSessionId] = useState("")
-  const [showHistory, setShowHistory] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [processingPaymentFor, setProcessingPaymentFor] = useState<number | null>(null)
-  const [userBalance, setUserBalance] = useState<number | null>(null)
-  const [transactions, setTransactions] = useState<any[]>([])
   const [directCheckoutReady, setDirectCheckoutReady] = useState(false)
-  const [isTouch, setIsTouch] = useState(false)
-  const [activeTab, setActiveTab] = useState(0)
-  const router = useRouter()
-  const [formattedBalance, setFormattedBalance] = useState('0')
   
   useEffect(() => {
     async function checkAuth() {
@@ -83,14 +71,6 @@ export default function Page() {
       setDirectCheckoutReady(true)
     }
   }, [])
-
-  const handleHistoryClick = () => {
-    setShowHistory(true)
-  }
-
-  const handleCloseHistory = () => {
-    setShowHistory(false)
-  }
   
   const handlePurchase = async (amount: number, coins: number) => {
     try {
@@ -193,7 +173,7 @@ export default function Page() {
             
             <div className="space-y-10 relative z-10 px-6 pb-10">
               {/* Header Section */}
-              <div className="max-w-5xl mx-auto">
+              <div className="max-w-6xl mx-auto">
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center">
                     <div className="w-8 h-8 flex items-center justify-center bg-zinc-950 border border-zinc-900 mr-3">
@@ -204,13 +184,6 @@ export default function Page() {
                       <p className="text-zinc-400 text-sm">SELECT_OPTIMAL_RESOURCE_ALLOCATION</p>
                     </div>
                   </div>
-                  <Button 
-                    className="flex items-center gap-2 bg-zinc-900 hover:bg-zinc-800 text-white border-zinc-700 transition-all hover:shadow-md rounded-xl"
-                    onClick={handleHistoryClick}
-                  >
-                    <Clock className="h-4 w-4" />
-                    <span>History</span>
-                  </Button>
                 </div>
               </div>
               
@@ -364,10 +337,6 @@ export default function Page() {
         </SidebarInset>
       </div>
       
-      {/* Transaction History Modal */}
-      {showHistory && (
-        <TransactionHistoryModal isOpen={showHistory} onClose={handleCloseHistory} />
-      )}
     </SidebarProvider>
   );
 } 
