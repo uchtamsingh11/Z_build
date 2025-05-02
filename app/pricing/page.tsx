@@ -204,7 +204,7 @@ export default function Page() {
                       
                       <div className="flex items-baseline mb-4">
                         <span className="text-4xl font-bold text-white">₹999</span>
-                        <span className="ml-1 text-sm text-zinc-400">/one-time</span>
+                        <span className="ml-1 text-sm text-zinc-400">/only</span>
                       </div>
                       
                       <div className="flex items-center py-2 px-3 bg-zinc-950 rounded-md border border-zinc-800 mb-4">
@@ -248,7 +248,7 @@ export default function Page() {
                       
                       <div className="flex items-baseline mb-4">
                         <span className="text-4xl font-bold text-white">₹2249</span>
-                        <span className="ml-1 text-sm text-zinc-400">/one-time</span>
+                        <span className="ml-1 text-sm text-zinc-400">/only</span>
                       </div>
                       
                       <div className="flex items-center py-2 px-3 bg-zinc-950 rounded-md border border-zinc-800 mb-4">

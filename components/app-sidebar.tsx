@@ -3,14 +3,10 @@
 import * as React from "react"
 import {
   BarChartBig,
-  BookOpen,
   Bot,
-  CircleDollarSign,
   Command,
   Copy,
   DollarSign,
-  ExternalLink,
-  FileJson,
   Frame,
   GalleryVerticalEnd,
   HelpCircle,
@@ -19,20 +15,14 @@ import {
   LineChart,
   Map,
   PieChart,
-  ScrollText,
-  Search,
   Settings2,
   Share2,
   ShoppingBag,
-  SquareTerminal,
-  Tag,
-  Webhook
 } from "lucide-react"
 import { useEffect, useState } from "react"
 import { createClient } from '@/lib/supabase/client'
 
 import { NavMain } from "@/components/nav-main"
-import { NavProjects } from "@/components/nav-projects"
 import { NavUser } from "@/components/nav-user"
 import { TeamSwitcher } from "@/components/team-switcher"
 import {
