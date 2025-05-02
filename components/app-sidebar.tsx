@@ -48,7 +48,7 @@ const defaultData = {
   user: {
     name: "User",
     email: "loading@example.com",
-    avatar: "/avatars/default.jpg",
+    avatar: "https://ui-avatars.com/api/?name=User&background=random",
   },
   teams: [
     {
@@ -223,7 +223,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           user: {
             name: userData?.full_name || data.user.user_metadata?.name || data.user.email?.split('@')[0] || 'User',
             email: data.user.email || 'No email',
-            avatar: userData?.avatar_url || data.user.user_metadata?.avatar_url || '/avatars/default.jpg',
+            avatar: userData?.avatar_url || data.user.user_metadata?.avatar_url ,
           }
         })
       }

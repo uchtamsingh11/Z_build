@@ -271,7 +271,7 @@ export default function AccountModal({
             <div className="relative">
               <Avatar className="h-24 w-24 border-2 border-zinc-800">
                 <AvatarImage 
-                  src={previewUrl || profile.avatar_url || '/avatars/default.jpg'} 
+                  src={previewUrl || profile.avatar_url } 
                   alt={profile.full_name} 
                 />
                 <AvatarFallback className="text-lg">
