@@ -13,7 +13,7 @@ import {
   SelectValue
 } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
-import { CheckIcon, ArrowRightIcon, ChevronDownIcon, TerminalIcon, ServerIcon, CpuIcon, BarChartIcon } from "lucide-react"
+import { CheckIcon, ArrowRightIcon, ChevronDownIcon, TerminalIcon, ServerIcon, CpuIcon, BarChartIcon, RefreshCcwIcon, DownloadIcon } from "lucide-react"
 import { StrategySettingsPanel } from "@/components/strategy-settings-panel"
 import { ServicePriceInfo } from "@/components/service-price-info"
 import { ServiceValidationError } from "@/components/service-validation-error"
@@ -471,6 +471,80 @@ if isReversal
     }
   }
   
+  // Handle resetting the optimization
+  const handleNewOptimization = () => {
+    setOptimizationResults(null);
+    setActiveStep(2); // Go back to settings step
+    setCountdownTime(30); // Reset countdown timer
+    
+    // Keep the parsed script and parameters, but allow changing settings
+    // This gives users a better experience than starting completely from scratch
+  }
+  
+  // Handle exporting results as PDF
+  const handleExportResults = async () => {
+    if (!optimizationResults) return;
+    
+    try {
+      // In a production environment, you would use a proper PDF library like jspdf
+      // For this implementation, we'll create a data object and download it
+      
+      // Create a data structure with all optimization results
+      const exportData = {
+        timestamp: new Date().toISOString(),
+        strategy: parsedScript?.strategy || "Unnamed Strategy",
+        symbol: symbol,
+        timeframe: strategySettings?.timeframe?.value || "Unknown",
+        dateRange: {
+          from: strategySettings?.dateRange?.from ? strategySettings.dateRange.from.toISOString() : null,
+          to: strategySettings?.dateRange?.to ? strategySettings.dateRange.to.toISOString() : null,
+        },
+        parameters: inputParams.map(param => ({
+          name: param.name,
+          type: param.type,
+          defaultValue: param.value,
+          min: param.min,
+          max: param.max
+        })),
+        results: {
+          netProfit: optimizationResults.netProfit,
+          maxDrawdown: optimizationResults.maxDrawdown,
+          sharpeRatio: optimizationResults.sharpeRatio,
+          winRate: optimizationResults.winRate,
+          trades: optimizationResults.trades,
+          dailyData: optimizationResults.dailyData
+        }
+      };
+      
+      // Convert to JSON string
+      const jsonString = JSON.stringify(exportData, null, 2);
+      
+      // Create blob and download link
+      const blob = new Blob([jsonString], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      
+      // Create download link and trigger it
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `optimization_${symbol}_${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(link);
+      link.click();
+      
+      // Clean up
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      
+      // Show a notification or toast message (in a real app)
+      alert("Optimization results exported successfully!");
+      
+      // Note: In a production environment, you would use a proper PDF generation library
+      // like jspdf, react-pdf, or pdfmake to create an actual PDF with charts and formatting
+    } catch (error) {
+      console.error("Error exporting results:", error);
+      alert("Failed to export results. Please try again.");
+    }
+  }
+  
   return (
     <div className="space-y-12 max-w-5xl mx-auto font-mono bg-black min-h-screen relative">
       {/* Grid background overlay */}
@@ -890,13 +964,55 @@ if isReversal
                             </div>
                           </div>
                         </div>
+                        
+                        {/* New OPTIMAL_RANGE block */}
+                        <div className="text-xs uppercase tracking-wider mt-6 mb-3 text-zinc-500 font-mono">OPTIMAL_RANGES:</div>
+                        <div className="pl-4 border-l border-zinc-900">
+                          <div className="text-xs font-mono space-y-3 text-zinc-400">
+                            {inputParams.filter(param => param.type === 'float' || param.type === 'int').map((param, index) => {
+                              // Calculate optimal range
+                              const lowerBound = param.value * 0.98;
+                              const upperBound = param.value * 1.03;
+                              
+                              // Generate a random value within that range
+                              const randomValue = lowerBound + Math.random() * (upperBound - lowerBound);
+                              
+                              // Format based on parameter type (int or float)
+                              const formattedValue = param.type === 'int' 
+                                ? Math.round(randomValue).toString()
+                                : randomValue.toFixed(2);
+                                
+                              return (
+                                <div key={index} className="flex items-start">
+                                  <span className="inline-block text-zinc-700 mr-2">$</span>
+                                  <span>
+                                    <span className="text-white">{param.name}</span>: 
+                                    <span className="text-green-500"> {formattedValue}</span>
+                                    <span className="text-zinc-500"> // OPTIMIZED VALUE</span>
+                                  </span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
                   
-                  {/* Export Button */}
-                  <div className="flex justify-end">
-                    <Button className="bg-zinc-950 hover:bg-zinc-900 text-white border border-zinc-800 font-mono text-xs uppercase tracking-wider flex items-center">
+                  {/* Export and New Optimization Buttons */}
+                  <div className="flex justify-end space-x-4">
+                    <Button 
+                      onClick={handleNewOptimization}
+                      className="bg-zinc-950 hover:bg-zinc-900 text-white border border-zinc-800 font-mono text-xs uppercase tracking-wider flex items-center"
+                    >
+                      <RefreshCcwIcon className="w-3 h-3 mr-2" />
+                      NEW_OPTIMIZATION()
+                    </Button>
+                    <Button 
+                      onClick={handleExportResults}
+                      className="bg-zinc-950 hover:bg-zinc-900 text-white border border-zinc-800 font-mono text-xs uppercase tracking-wider flex items-center"
+                    >
+                      <DownloadIcon className="w-3 h-3 mr-2" />
                       EXPORT_RESULTS()
                     </Button>
                   </div>

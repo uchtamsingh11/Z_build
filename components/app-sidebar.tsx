@@ -197,37 +197,95 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const [userData, setUserData] = useState(defaultData)
   const [loading, setLoading] = useState(true)
   
+  // Function to fetch user data
+  const fetchUserData = async () => {
+    try {
+      setLoading(true)
+      const supabase = createClient()
+      const { data, error } = await supabase.auth.getUser()
+      
+      if (error) {
+        console.error('Error fetching user:', error)
+        return
+      }
+      
+      if (data?.user) {
+        // Try to get profile from users table first
+        const { data: userData, error: userError } = await supabase
+          .from('users')
+          .select('full_name, avatar_url')
+          .eq('id', data.user.id)
+          .single()
+          
+        // Update user data with real values
+        setUserData({
+          ...defaultData,
+          user: {
+            name: userData?.full_name || data.user.user_metadata?.name || data.user.email?.split('@')[0] || 'User',
+            email: data.user.email || 'No email',
+            avatar: userData?.avatar_url || data.user.user_metadata?.avatar_url || '/avatars/default.jpg',
+          }
+        })
+      }
+    } catch (err) {
+      console.error('Error in fetchUserData:', err)
+    } finally {
+      setLoading(false)
+    }
+  }
+  
+  // Subscribe to auth state changes
   useEffect(() => {
-    // Fetch user data from Supabase
-    const fetchUserData = async () => {
-      try {
-        const supabase = createClient()
-        const { data, error } = await supabase.auth.getUser()
-        
-        if (error) {
-          console.error('Error fetching user:', error)
-          return
-        }
-        
-        if (data?.user) {
-          // Update user data with real values
-          setUserData({
-            ...defaultData,
-            user: {
-              name: data.user.user_metadata?.name || data.user.email?.split('@')[0] || 'User',
-              email: data.user.email || 'No email',
-              avatar: data.user.user_metadata?.avatar_url || '/avatars/default.jpg',
-            }
-          })
-        }
-      } catch (err) {
-        console.error('Error in fetchUserData:', err)
-      } finally {
-        setLoading(false)
+    fetchUserData()
+    
+    const supabase = createClient()
+    
+    // Subscribe to auth changes
+    const { data: authListener } = supabase.auth.onAuthStateChange(() => {
+      fetchUserData()
+    })
+    
+    // Set up listener for user profile updates
+    const setupUserListener = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return null
+      
+      const channel = supabase
+        .channel('user-profile-changes')
+        .on(
+          'postgres_changes',
+          {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'users',
+            filter: `id=eq.${user.id}`,
+          },
+          () => {
+            fetchUserData()
+          }
+        )
+        .subscribe()
+      
+      return () => {
+        supabase.removeChannel(channel)
       }
     }
     
-    fetchUserData()
+    const unsubscribePromise = setupUserListener()
+    
+    return () => {
+      // Clean up auth listener
+      if (authListener?.subscription) {
+        authListener.subscription.unsubscribe()
+      }
+      
+      // Clean up DB listener
+      if (unsubscribePromise) {
+        unsubscribePromise.then(unsubFn => {
+          if (unsubFn) unsubFn()
+        })
+      }
+    }
   }, [])
 
   return (
