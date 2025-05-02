@@ -19,6 +19,7 @@ import { ServicePriceInfo } from "@/components/service-price-info"
 import { ServiceValidationError } from "@/components/service-validation-error"
 import { refreshCoinBalance } from "@/components/coin-balance-display"
 import { Label } from "@/components/ui/label"
+import { SymbolSearch } from "@/components/SymbolSearch"
 
 // Function to extract input parameters from Pine script
 const convertPineScriptToJson = (pineScript: string) => {
@@ -644,12 +645,17 @@ if isReversal
                 {/* Symbol Selector */}
                 <div>
                   <label className="text-xs uppercase tracking-wider block mb-2 text-zinc-500 font-mono">SYMBOL:</label>
-                  <Input 
-                    placeholder="BTCUSDT"
-                    value={symbol}
-                    onChange={(e) => setSymbol(e.target.value)}
-                    className="bg-zinc-900 border-zinc-800 text-zinc-300 placeholder:text-zinc-600 focus:border-zinc-700 focus:ring-0 font-mono"
+                  <SymbolSearch 
+                    onSelect={(selectedSymbol) => setSymbol(selectedSymbol.DISPLAY_NAME)}
+                    placeholder="Search for symbols..."
+                    className="w-full"
                   />
+                  {symbol && (
+                    <div className="mt-2 text-xs text-zinc-400 font-mono flex items-center">
+                      <span className="text-zinc-500 mr-2">SELECTED:</span>
+                      <span className="text-white bg-zinc-800 px-2 py-1 rounded">{symbol}</span>
+                    </div>
+                  )}
                 </div>
               </div>
               

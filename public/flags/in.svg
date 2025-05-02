@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 600">
+  <rect width="900" height="200" fill="#FF9933"/>
+  <rect width="900" height="200" y="200" fill="#FFFFFF"/>
+  <rect width="900" height="200" y="400" fill="#138808"/>
+  <circle cx="450" cy="300" r="60" fill="#000080"/>
+  <circle cx="450" cy="300" r="55" fill="#FFFFFF"/>
+  <circle cx="450" cy="300" r="20" fill="#000080"/>
+  <g id="wheel">
+    <circle cx="450" cy="300" r="40" fill="none" stroke="#000080" stroke-width="1.5"/>
+    <g id="spokes">
+      <line x1="450" y1="300" x2="450" y2="260" stroke="#000080" stroke-width="1.5"/>
+      <line x1="450" y1="300" x2="450" y2="340" stroke="#000080" stroke-width="1.5"/>
+      <line x1="450" y1="300" x2="410" y2="300" stroke="#000080" stroke-width="1.5"/>
+      <line x1="450" y1="300" x2="490" y2="300" stroke="#000080" stroke-width="1.5"/>
+      <line x1="450" y1="300" x2="425" y2="275" stroke="#000080" stroke-width="1.5"/>
+      <line x1="450" y1="300" x2="475" y2="325" stroke="#000080" stroke-width="1.5"/>
+      <line x1="450" y1="300" x2="425" y2="325" stroke="#000080" stroke-width="1.5"/>
+      <line x1="450" y1="300" x2="475" y2="275" stroke="#000080" stroke-width="1.5"/>
+    </g>
+  </g>
+</svg> 
