@@ -136,7 +136,6 @@ export default function IntegrationsSection() {
                                 <InfiniteSlider
                                     gap={32}
                                     speed={20}
-                                    speedOnHover={5}
                                     direction="horizontal">
                                     {integrationData.slice(0, 4).map((integration, i) => (
                                         <Tooltip key={i}>
@@ -159,7 +158,6 @@ export default function IntegrationsSection() {
                                 <InfiniteSlider
                                     gap={32}
                                     speed={20}
-                                    speedOnHover={5}
                                     direction="horizontal"
                                     reverse>
                                     {integrationData.slice(2, 6).map((integration, i) => (
@@ -183,7 +181,6 @@ export default function IntegrationsSection() {
                                 <InfiniteSlider
                                     gap={32}
                                     speed={20}
-                                    speedOnHover={5}
                                     direction="horizontal">
                                     {integrationData.slice(1, 5).map((integration, i) => (
                                         <Tooltip key={i}>
