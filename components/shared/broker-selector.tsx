@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Plus, X, Trash2 } from 'lucide-react';
+import { Plus, Trash2 } from 'lucide-react';
 import { 
   Dialog, 
   DialogContent, 
@@ -18,7 +18,15 @@ type Broker = {
   is_active: boolean;
 };
 
-export function BrokerSelector() {
+type BrokerSelectorProps = {
+  title?: string;
+  onBrokersChange?: (brokers: Broker[]) => void;
+};
+
+export function BrokerSelector({ 
+  title = "Choose your broker",
+  onBrokersChange
+}: BrokerSelectorProps) {
   const [savedBrokers, setSavedBrokers] = useState<Broker[]>([]);
   const [selectedBrokers, setSelectedBrokers] = useState<Broker[]>([]);
   const [isSelectDialogOpen, setIsSelectDialogOpen] = useState(false);
@@ -29,6 +37,13 @@ export function BrokerSelector() {
   useEffect(() => {
     fetchSavedBrokers();
   }, []);
+
+  // Update parent component when selected brokers change
+  useEffect(() => {
+    if (onBrokersChange) {
+      onBrokersChange(selectedBrokers);
+    }
+  }, [selectedBrokers, onBrokersChange]);
 
   const fetchSavedBrokers = async () => {
     try {
@@ -84,7 +99,7 @@ export function BrokerSelector() {
 
   return (
     <div className="space-y-4">
-      <h3 className="text-md font-medium text-zinc-200">Choose your broker</h3>
+      <h3 className="text-md font-medium text-zinc-200">{title}</h3>
       
       <div className="flex flex-col space-y-3">
         {/* Display selected brokers */}

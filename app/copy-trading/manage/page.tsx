@@ -16,9 +16,9 @@ import {
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { CoinBalanceDisplay } from "@/components/coin-balance-display"
-import { CopyTradingBrokerSelector } from "@/components/copy-trading/broker-selector"
 import { Card, CardContent } from "@/components/ui/card"
 import { LineChart, TerminalIcon, CopyIcon } from "lucide-react"
+import { BrokerSelector } from "@/components/shared/broker-selector"
 
 export default async function Page() {
   // Check if user is authenticated
@@ -80,7 +80,7 @@ export default async function Page() {
               
               <Card className="border-zinc-800 bg-zinc-900/50 shadow-md">
                 <CardContent className="pt-6 space-y-6">
-                  <CopyTradingBrokerSelector />
+                  <BrokerSelector />
                   
                   {/* Additional Copy Trading settings can be added here */}
                 </CardContent>

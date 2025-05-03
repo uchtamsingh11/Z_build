@@ -6,7 +6,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import Link from 'next/link'
-import { InfiniteSlider } from '@/components/ui/infinite-slider'
+import { InfiniteSlider } from '@/components/motion-primitives/infinite-slider'
 import { ExternalLink } from 'lucide-react'
 
 // Replace with actual trading/financial platform logos

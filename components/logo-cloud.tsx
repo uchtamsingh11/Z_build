@@ -1,7 +1,7 @@
 "use client"
 
-import { InfiniteSlider } from '@/components/ui/infinite-slider'
-import { ProgressiveBlur } from '@/components/ui/progressive-blur'
+import { InfiniteSlider } from '@/components/motion-primitives/infinite-slider'
+import { ProgressiveBlur } from '@/components/motion-primitives/progressive-blur'
 import { Landmark } from 'lucide-react'
 
 export default function LogoCloud() {
@@ -20,88 +20,89 @@ export default function LogoCloud() {
                             <p className="text-end text-sm text-zinc-400 font-mono uppercase">TRUSTED_PARTNERS</p>
                         </div>
                     </div>
-                    <div className="relative py-6 md:w-[calc(100%-11rem)]">
+                    <div className="relative py-6 md:w-[calc(100%-11rem)] z-20">
                         <InfiniteSlider
                             direction="horizontal"
-                            speed={40}
-                            speedOnHover={20}
-                            gap={112}>
+                            speed={20}
+                            reverse={false}
+                            gap={40}
+                            className="z-30 relative">
                             <div className="flex">
-                                <span className="mx-auto text-lg font-mono text-white opacity-70 hover:opacity-100 transition-opacity uppercase">
+                                <span className="mx-auto text-lg font-mono text-white opacity-100 uppercase font-semibold">
                                     ALICEBLUE
                                 </span>
                             </div>
 
                             <div className="flex">
-                                <span className="mx-auto text-lg font-mono text-white opacity-70 hover:opacity-100 transition-opacity uppercase">
+                                <span className="mx-auto text-lg font-mono text-white opacity-100 uppercase font-semibold">
                                     ANGLEBROKING
                                 </span>
                             </div>
                             
                             <div className="flex">
-                                <span className="mx-auto text-lg font-mono text-white opacity-70 hover:opacity-100 transition-opacity uppercase">
+                                <span className="mx-auto text-lg font-mono text-white opacity-100 uppercase font-semibold">
                                     DHANHQ
                                 </span>
                             </div>
                             
                             <div className="flex">
-                                <span className="mx-auto text-lg font-mono text-white opacity-70 hover:opacity-100 transition-opacity uppercase">
+                                <span className="mx-auto text-lg font-mono text-white opacity-100 uppercase font-semibold">
                                     ZERODHA
                                 </span>
                             </div>
                             
                             <div className="flex">
-                                <span className="mx-auto text-lg font-mono text-white opacity-70 hover:opacity-100 transition-opacity uppercase">
+                                <span className="mx-auto text-lg font-mono text-white opacity-100 uppercase font-semibold">
                                     FYERS
                                 </span>
                             </div>
                             
                             <div className="flex">
-                                <span className="mx-auto text-lg font-mono text-white opacity-70 hover:opacity-100 transition-opacity uppercase">
+                                <span className="mx-auto text-md font-mono text-white opacity-100 uppercase font-semibold">
                                     BINANCE
                                 </span>
                             </div>
 
                             <div className="flex">
-                                <span className="mx-auto text-lg font-mono text-white opacity-70 hover:opacity-100 transition-opacity uppercase">
+                                <span className="mx-auto text-md font-mono text-white opacity-100 uppercase font-semibold">
                                     DELTAEXCHANGE
                                 </span>
                             </div>
                             
                             <div className="flex">
-                                <span className="mx-auto text-lg font-mono text-white opacity-70 hover:opacity-100 transition-opacity uppercase">
+                                <span className="mx-auto text-md font-mono text-white opacity-100 uppercase font-semibold">
                                     KOTAK
                                 </span>
                             </div>
                             
                             <div className="flex">
-                                <span className="mx-auto text-lg font-mono text-white opacity-70 hover:opacity-100 transition-opacity uppercase">
+                                <span className="mx-auto text-md font-mono text-white opacity-100 uppercase font-semibold">
                                     FLATTRADE
                                 </span>
                             </div>
                             
                             <div className="flex">
-                                <span className="mx-auto text-lg font-mono text-white opacity-70 hover:opacity-100 transition-opacity uppercase">
+                                <span className="mx-auto text-md font-mono text-white opacity-100 uppercase font-semibold">
                                     ICICI_DIRECT
                                 </span>
                             </div>
                             
                             <div className="flex">
-                                <span className="mx-auto text-lg font-mono text-white opacity-70 hover:opacity-100 transition-opacity uppercase">
+                                <span className="mx-auto text-md font-mono text-white opacity-100 uppercase font-semibold">
                                     IIFL
                                 </span>
                             </div>
                         </InfiniteSlider>
 
-                        <div className="bg-gradient-to-r from-black absolute inset-y-0 left-0 w-20"></div>
-                        <div className="bg-gradient-to-l from-black absolute inset-y-0 right-0 w-20"></div>
+                        <div className="bg-gradient-to-r from-black absolute inset-y-0 left-0 w-20 z-10"></div>
+                        <div className="bg-gradient-to-l from-black absolute inset-y-0 right-0 w-20 z-10"></div>
                         <ProgressiveBlur
-                            className="pointer-events-none absolute left-0 top-0 h-full w-20"
+                            className="pointer-events-none absolute left-0 top-0 h-full w-20 z-10"
                             direction="right"
                             blurIntensity={1}
                         />
                         <ProgressiveBlur
-                            className="pointer-events-none absolute right-0 top-0 h-full w-20"
+                            className="pointer-events-none absolute right-0 top-0 h-full w-20 z-10"
                             direction="left"
                             blurIntensity={1}
                         />

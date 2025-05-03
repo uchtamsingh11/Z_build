@@ -16,7 +16,7 @@ import {
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { CoinBalanceDisplay } from "@/components/coin-balance-display"
-import { BrokerSelector } from "@/components/tradingview/broker-selector"
+import { BrokerSelector } from "@/components/shared/broker-selector"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { LineChart, TerminalIcon } from "lucide-react"
 

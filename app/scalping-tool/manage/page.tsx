@@ -16,7 +16,7 @@ import {
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { CoinBalanceDisplay } from "@/components/coin-balance-display"
-import { ScalpingToolBrokerSelector } from "@/components/scalping-tool/broker-selector"
+import { BrokerSelector } from "@/components/shared/broker-selector"
 import { Card, CardContent } from "@/components/ui/card"
 import { TerminalIcon, ScissorsIcon } from "lucide-react"
 
@@ -80,7 +80,7 @@ export default async function Page() {
               
               <Card className="border-zinc-800 bg-zinc-900/50 shadow-md">
                 <CardContent className="pt-6 space-y-6">
-                  <ScalpingToolBrokerSelector />
+                  <BrokerSelector />
                   
                   {/* Additional Scalping Tool settings can be added here */}
                 </CardContent>

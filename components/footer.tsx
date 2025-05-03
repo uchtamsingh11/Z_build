@@ -34,19 +34,19 @@ export default function Footer() {
           <div>
             <h3 className="mb-4 text-lg font-semibold font-mono uppercase">PAGES</h3>
             <nav className="space-y-2 text-sm text-zinc-400 font-mono uppercase">
-              <Link href="/privacy-policy" className="block transition-colors hover:text-white">
+              <Link href="/privacy" className="block transition-colors hover:text-white">
                 PRIVACY_POLICY
               </Link>
-              <Link href="/disclaimer-policy" className="block transition-colors hover:text-white">
+              <Link href="/disclaimer" className="block transition-colors hover:text-white">
                 DISCLAIMER_POLICY
               </Link>
-              <Link href="/terms-conditions" className="block transition-colors hover:text-white">
+              <Link href="/terms" className="block transition-colors hover:text-white">
                 TERMS_AND_CONDITIONS
               </Link>
-              <Link href="/cookies-policy" className="block transition-colors hover:text-white">
+              <Link href="/cookies" className="block transition-colors hover:text-white">
                 COOKIES_POLICY
               </Link>
-              <Link href="/refund-policy" className="block transition-colors hover:text-white">
+              <Link href="/refund" className="block transition-colors hover:text-white">
                 REFUND_AND_CANCELLATION
               </Link>
             </nav>
@@ -78,13 +78,13 @@ export default function Footer() {
             © 2024 ALGOZ_TRADING. ALL_RIGHTS_RESERVED.
           </p>
           <nav className="flex gap-4 text-sm text-zinc-400 font-mono uppercase">
-            <Link href="/privacy-policy" className="transition-colors hover:text-white">
+            <Link href="/privacy" className="transition-colors hover:text-white">
               PRIVACY_POLICY
             </Link>
-            <Link href="/terms-conditions" className="transition-colors hover:text-white">
+            <Link href="/terms" className="transition-colors hover:text-white">
               TERMS_OF_SERVICE
             </Link>
-            <Link href="/cookies-policy" className="transition-colors hover:text-white">
+            <Link href="/cookies" className="transition-colors hover:text-white">
               COOKIE_SETTINGS
             </Link>
           </nav>

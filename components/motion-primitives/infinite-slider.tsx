@@ -1,91 +1,68 @@
 "use client"
 
-import React, { useRef, useState, useEffect } from 'react'
-import { motion, useAnimationFrame, useMotionTemplate, useMotionValue, useTransform } from 'framer-motion'
+import React, { useRef, useEffect } from 'react'
+import { motion, useAnimationFrame, useMotionValue } from 'framer-motion'
 
 interface InfiniteSliderProps extends React.HTMLAttributes<HTMLDivElement> {
   children: React.ReactNode
   gap?: number
   speed?: number
-  speedOnHover?: number
   reverse?: boolean
+  direction?: 'horizontal' | 'vertical'
 }
 
 export function InfiniteSlider({
   children,
   gap = 32,
-  speed = 15,
-  speedOnHover = 0,
+  speed = 20,
   reverse = false,
+  direction = 'horizontal',
   className,
   ...props
 }: InfiniteSliderProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const scrollerRef = useRef<HTMLUListElement>(null)
-
-  const [wrapperWidth, setWrapperWidth] = useState<number>(0)
-  const [scrollerWidth, setScrollerWidth] = useState<number>(0)
-  const [duplicatedItems, setDuplicatedItems] = useState<React.ReactNode[]>([])
-
-  // Create a motion value for the x position of the slider
   const x = useMotionValue(0)
-  const [hovered, setHovered] = useState(false)
-
-  useEffect(() => {
-    if (containerRef.current && scrollerRef.current) {
-      setWrapperWidth(containerRef.current.offsetWidth)
-      setScrollerWidth(scrollerRef.current.scrollWidth)
-    }
-
-    // Duplicate the children if necessary to fill the slider
-    const childrenArray = React.Children.toArray(children)
-    setDuplicatedItems([...childrenArray, ...childrenArray, ...childrenArray])
-  }, [children])
-
-  // Use a motion frame animation to animate the slider
-  useAnimationFrame((time, delta) => {
-    if (!containerRef.current || !scrollerRef.current || wrapperWidth === 0 || scrollerWidth === 0) {
-      return
-    }
-
-    // Calculate the target speed based on hover state
-    const targetSpeed = hovered ? speedOnHover : speed
-    const speedToUse = targetSpeed * (delta / 1000)
+  
+  // Simple animation using useAnimationFrame
+  useAnimationFrame((_, delta) => {
+    const speedFactor = speed * (delta / 1000)
+    const directionFactor = reverse ? 1 : -1
     
-    // Apply direction based on reverse prop
-    const direction = reverse ? 1 : -1
-    let newX = x.get() + (speedToUse * direction)
+    x.set(x.get() + speedFactor * directionFactor)
     
-    // Handle looping differently based on direction
-    if (reverse) {
-      if (newX > scrollerWidth / 3) {
-        newX = 0
-      }
-    } else {
-      if (newX < -scrollerWidth / 3) {
-        newX = 0
+    // Reset position when it's gone far enough to create a seamless loop
+    if (scrollerRef.current) {
+      const scrollWidth = scrollerRef.current.scrollWidth / 2
+      if (Math.abs(x.get()) > scrollWidth) {
+        x.set(0)
       }
     }
-
-    x.set(newX)
   })
-
+  
   return (
-    <div
-      ref={containerRef}
-      className={className}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      style={{ overflow: 'hidden' }}
+    <div 
+      ref={containerRef} 
+      className={`overflow-hidden ${className || ''}`}
       {...props}
     >
       <motion.ul
         ref={scrollerRef}
-        style={{ x, gap: `${gap}px` }}
-        className="flex w-max flex-nowrap whitespace-nowrap"
+        style={{
+          x: direction === 'horizontal' ? x : 0,
+          y: direction === 'vertical' ? x : 0,
+          gap: `${gap}px`,
+        }}
+        className="flex flex-nowrap items-center"
       >
-        {duplicatedItems.map((child, idx) => (
-          <li key={idx} className="flex-none">
+        {/* Show children twice to ensure smooth looping */}
+        {React.Children.map(children, (child, j) => (
+          <li key={`a-${j}`} className="flex items-center" style={{ padding: `0 ${gap/2}px` }}>
+            {child}
+          </li>
+        ))}
+        {React.Children.map(children, (child, j) => (
+          <li key={`b-${j}`} className="flex items-center" style={{ padding: `0 ${gap/2}px` }}>
             {child}
           </li>
         ))}
