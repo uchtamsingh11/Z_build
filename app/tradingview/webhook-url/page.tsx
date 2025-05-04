@@ -17,7 +17,15 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { CoinBalanceDisplay } from "@/components/coin-balance-display"
 import { Card, CardContent } from "@/components/ui/card"
-import { LineChart, TerminalIcon, Link2Icon } from "lucide-react"
+import { LineChart, TerminalIcon, Link2Icon, ClipboardCopyIcon, AlertTriangleIcon, RefreshCwIcon, ToggleLeftIcon, ToggleRightIcon, Trash2Icon, PlusIcon } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { WebhookManager } from "@/components/webhook/webhook-manager"
+import crypto from 'crypto'
+
+// Helper to generate a random token
+const generateToken = () => {
+  return crypto.randomBytes(16).toString('hex');
+};
 
 export default async function Page() {
   // Check if user is authenticated
@@ -28,7 +36,40 @@ export default async function Page() {
     redirect('/auth/login')
   }
 
-  const sessionId = Math.random().toString(36).substring(2, 10).toUpperCase()
+  // Get or create a webhook for the user
+  let { data: webhooks } = await supabase
+    .from('webhooks')
+    .select('*')
+    .eq('user_id', data.user.id)
+    .order('created_at', { ascending: false });
+
+  // If no webhook exists, create one
+  if (!webhooks || webhooks.length === 0) {
+    const newToken = generateToken();
+    
+    await supabase
+      .from('webhooks')
+      .insert({
+        user_id: data.user.id,
+        token: newToken,
+        description: 'Default TradingView webhook'
+      });
+    
+    // Refresh webhooks list
+    const { data: refreshedWebhooks } = await supabase
+      .from('webhooks')
+      .select('*')
+      .eq('user_id', data.user.id)
+      .order('created_at', { ascending: false });
+      
+    if (refreshedWebhooks) {
+      webhooks = refreshedWebhooks;
+    }
+  }
+
+  // Get the API base URL from environment or default
+  const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 
+    `${process.env.NEXT_PUBLIC_VERCEL_URL ? `https://${process.env.NEXT_PUBLIC_VERCEL_URL}` : 'http://localhost:3000'}`;
 
   return (
     <SidebarProvider>
@@ -79,7 +120,11 @@ export default async function Page() {
               
               <Card className="border-zinc-800 bg-zinc-900/50 shadow-md">
                 <CardContent className="pt-6 space-y-6">
-                  {/* Content for webhook URL page */}
+                  <WebhookManager 
+                    webhooks={webhooks || []} 
+                    apiBaseUrl={apiBaseUrl} 
+                    userId={data.user.id} 
+                  />
                 </CardContent>
               </Card>
             </div>
