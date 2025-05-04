@@ -68,8 +68,8 @@ export default async function Page() {
   }
 
   // Get the API base URL from environment or default
-  const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 
-    `${process.env.NEXT_PUBLIC_VERCEL_URL ? `https://${process.env.NEXT_PUBLIC_VERCEL_URL}` : 'http://localhost:3000'}`;
+     const apiBaseUrl = process.env.NEXT_PUBLIC_APP_URL || 
+     `${process.env.NEXT_PUBLIC_APP_URL ? `https://${process.env.NEXT_PUBLIC_APP_URL}` : 'http://localhost:3000'}`;
 
   return (
     <SidebarProvider>
