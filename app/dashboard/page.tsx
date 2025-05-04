@@ -58,6 +58,8 @@ import {
   ServerIcon,
   BarChartIcon,
 } from "lucide-react"
+import { TickerTape } from "@/components/tradingview/ticker-tape"
+import { NewsWidget } from "@/components/tradingview/news-widget"
 
 export default async function DashboardPage() {
   // Check if user is authenticated
@@ -98,6 +100,29 @@ export default async function DashboardPage() {
             {/* <div className="absolute inset-0 bg-[linear-gradient(to_right,#111_1px,transparent_1px),linear-gradient(to_bottom,#111_1px,transparent_1px)] bg-[size:32px_32px] opacity-20"></div> */}
             
             <div className="space-y-10 relative z-10">
+              {/* 📈 TradingView Ticker Tape Widget */}
+              <section>
+                <div className="flex items-center mb-4">
+                  <div className="w-6 h-6 flex items-center justify-center bg-zinc-950 border border-zinc-900 mr-2">
+                    <Globe className="w-3 h-3 text-white" />
+                  </div>
+                  <h2 className="text-sm font-mono uppercase tracking-wider text-white">LIVE_MARKET_DATA</h2>
+                </div>
+                <TickerTape 
+                  symbols={[
+                    { proName: "NASDAQ:AAPL", title: "Apple" },
+                    { proName: "NASDAQ:GOOGL", title: "Google" },
+                    { proName: "NASDAQ:TSLA", title: "Tesla" },
+                    { proName: "FX_IDC:USDINR", title: "USD/INR" },
+                    { proName: "CRYPTOCAP:BTC", title: "Bitcoin" }
+                  ]}
+                  colorTheme="dark"
+                  isTransparent={true}
+                  showSymbolLogo={true}
+                  displayMode="regular"
+                />
+              </section>
+
               {/* 📊 Top Section – Market Overview Cards */}
               <section>
                 <div className="flex items-center mb-4">
@@ -290,129 +315,13 @@ export default async function DashboardPage() {
                   </div>
                   <h2 className="text-sm font-mono uppercase tracking-wider text-white">MARKET_INTEL</h2>
                 </div>
-                <Card className="border border-zinc-900 bg-zinc-950 shadow-[0_0_15px_rgba(0,0,0,0.5)]">
-                  <Tabs defaultValue="news" className="w-full">
-                    <div className="border-b border-zinc-900 px-4">
-                      <TabsList className="bg-transparent border-b-0 h-12">
-                        <TabsTrigger 
-                          value="news" 
-                          className="data-[state=active]:border-b-2 data-[state=active]:border-white data-[state=active]:bg-transparent data-[state=active]:shadow-none rounded-none text-xs font-mono px-4"
-                        >
-                          NEWS_FEED
-                        </TabsTrigger>
-                        <TabsTrigger 
-                          value="alerts" 
-                          className="data-[state=active]:border-b-2 data-[state=active]:border-white data-[state=active]:bg-transparent data-[state=active]:shadow-none rounded-none text-xs font-mono px-4"
-                        >
-                          PRICE_ALERTS
-                        </TabsTrigger>
-                        <TabsTrigger 
-                          value="reports" 
-                          className="data-[state=active]:border-b-2 data-[state=active]:border-white data-[state=active]:bg-transparent data-[state=active]:shadow-none rounded-none text-xs font-mono px-4"
-                        >
-                          REPORTS
-                        </TabsTrigger>
-                      </TabsList>
-                    </div>
-                    <TabsContent value="news" className="p-0">
-                      <div className="divide-y divide-zinc-900">
-                        <NewsItem 
-                          title="Fed Signals Potential Rate Cut in September Meeting" 
-                          source="Bloomberg" 
-                          summary="Federal Reserve officials indicated they are moving toward cutting interest rates at their next meeting." 
-                          time="2h ago" 
-                          tags={["Monetary Policy", "Federal Reserve"]} 
-                        />
-                        <NewsItem 
-                          title="Bitcoin Tests Support at $68,000 as Market Consolidates" 
-                          source="CoinDesk" 
-                          summary="Bitcoin continued to trade in a tight range as market volatility decreases." 
-                          time="4h ago" 
-                          tags={["Crypto", "Bitcoin"]} 
-                        />
-                        <NewsItem 
-                          title="European Markets Close Higher on Strong Corporate Earnings" 
-                          source="Reuters" 
-                          summary="European stocks ended higher Thursday as a batch of strong corporate updates boosted sentiment." 
-                          time="7h ago" 
-                          tags={["Europe", "Stocks"]} 
-                        />
-                        <NewsItem 
-                          title="Nvidia Unveils Next-Gen AI Chips, Stock Surges 4%" 
-                          source="CNBC" 
-                          summary="Nvidia announced its latest generation of AI chips, promising 2x performance gains." 
-                          time="9h ago" 
-                          tags={["AI", "Technology"]} 
-                        />
-                      </div>
-                    </TabsContent>
-                    <TabsContent value="alerts" className="pt-2 px-4">
-                      <div className="space-y-4">
-                        <AlertItem 
-                          symbol="BTC/USD" 
-                          condition="below" 
-                          price="65,000.00" 
-                          status="pending" 
-                        />
-                        <AlertItem 
-                          symbol="ETH/USD" 
-                          condition="above" 
-                          price="3,500.00" 
-                          status="triggered" 
-                        />
-                        <AlertItem 
-                          symbol="AAPL" 
-                          condition="above" 
-                          price="190.00" 
-                          status="pending" 
-                        />
-                        <AlertItem 
-                          symbol="TSLA" 
-                          condition="below" 
-                          price="180.00" 
-                          status="pending" 
-                        />
-                      </div>
-                      <div className="mt-4 flex justify-center">
-                        <Button size="sm" className="w-full bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-white text-xs font-mono">
-                          <Plus className="h-3.5 w-3.5 mr-1" /> CREATE_NEW_ALERT
-                        </Button>
-                      </div>
-                    </TabsContent>
-                    <TabsContent value="reports" className="p-4">
-                      <div className="space-y-4">
-                        <div className="p-3 border border-zinc-900 rounded bg-zinc-900/30">
-                          <h3 className="text-sm font-medium flex items-center gap-2">
-                            <BookOpen className="h-4 w-4" /> Weekly Market Analysis
-                          </h3>
-                          <p className="text-xs text-zinc-400 mt-1">
-                            Comprehensive review of market movements and key events from the past week.
-                          </p>
-                          <div className="flex items-center justify-between mt-3">
-                            <span className="text-xs text-zinc-500">Published: 2 days ago</span>
-                            <Button variant="ghost" size="sm" className="text-xs font-mono text-zinc-400 hover:text-white hover:bg-zinc-800">
-                              VIEW_REPORT
-                            </Button>
-                          </div>
-                        </div>
-                        <div className="p-3 border border-zinc-900 rounded bg-zinc-900/30">
-                          <h3 className="text-sm font-medium flex items-center gap-2">
-                            <BookOpen className="h-4 w-4" /> Crypto Market Depth Analysis
-                          </h3>
-                          <p className="text-xs text-zinc-400 mt-1">
-                            Deep dive into current cryptocurrency market structure and liquidity.
-                          </p>
-                          <div className="flex items-center justify-between mt-3">
-                            <span className="text-xs text-zinc-500">Published: 4 days ago</span>
-                            <Button variant="ghost" size="sm" className="text-xs font-mono text-zinc-400 hover:text-white hover:bg-zinc-800">
-                              VIEW_REPORT
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
-                    </TabsContent>
-                  </Tabs>
-                </Card>
+                <NewsWidget 
+                  colorTheme="dark"
+                  isTransparent={true}
+                  height={500}
+                  showBorder={false}
+                  newsCategories={["headlines", "economy", "stock", "crypto"]}
+                />
               </section>
             </div>
           </div>

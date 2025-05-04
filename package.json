@@ -52,6 +52,7 @@
     "react-day-picker": "^9.6.7",
     "react-dom": "latest",
     "react-dropzone": "^14.3.8",
+    "react-intersection-observer": "^9.16.0",
     "react-use-measure": "^2.1.7",
     "sonner": "^2.0.3",
     "tailwind-merge": "^3.2.0",

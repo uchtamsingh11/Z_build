@@ -73,7 +73,7 @@ export default async function ChartsPage() {
 
               <div className="text-center">
                 <a
-                // href="/charts/advanced"
+                href="/charts/advanced"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center justify-center px-8 py-3 bg-black border border-white rounded-md text-lg font-medium text-white"
