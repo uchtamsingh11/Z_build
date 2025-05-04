@@ -124,7 +124,7 @@ export default async function DashboardPage() {
               </section>
 
               {/* 📊 Top Section – Market Overview Cards */}
-              <section>
+              {/* <section>
                 <div className="flex items-center mb-4">
                   <div className="w-6 h-6 flex items-center justify-center bg-zinc-950 border border-zinc-900 mr-2">
                     <BarChartIcon className="w-3 h-3 text-white" />
@@ -161,7 +161,7 @@ export default async function DashboardPage() {
                     icon={<DollarSign className="h-5 w-5" />} 
                   />
                 </div>
-              </section>
+              </section> */}
 
               {/* 🧠 Mid Section – Portfolio Snapshot + Bot Performance */}
               <section className="grid grid-cols-1 lg:grid-cols-3 gap-6">
