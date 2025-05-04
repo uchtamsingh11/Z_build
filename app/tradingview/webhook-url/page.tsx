@@ -17,8 +17,7 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { CoinBalanceDisplay } from "@/components/coin-balance-display"
 import { Card, CardContent } from "@/components/ui/card"
-import { LineChart, TerminalIcon, Link2Icon, ClipboardCopyIcon, AlertTriangleIcon, RefreshCwIcon, ToggleLeftIcon, ToggleRightIcon, Trash2Icon, PlusIcon } from "lucide-react"
-import { Button } from "@/components/ui/button"
+import { Link2Icon } from "lucide-react"
 import { WebhookManager } from "@/components/webhook/webhook-manager"
 import crypto from 'crypto'
 
