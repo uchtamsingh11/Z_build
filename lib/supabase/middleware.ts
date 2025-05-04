@@ -34,6 +34,42 @@ export async function updateSession(request: NextRequest) {
     }
   )
 
+  // Check for protected admin routes
+  if (isAdminRoute(request.nextUrl.pathname)) {
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) {
+      // If not logged in, redirect to login
+      return NextResponse.redirect(new URL('/auth/login', request.url));
+    }
+    
+    // Check if user is an admin
+    const { data: userData, error } = await supabase
+      .from('users')
+      .select('role')
+      .eq('id', user.id)
+      .single();
+    
+    if (error || !userData || userData.role !== 'admin') {
+      // If not an admin, redirect to unauthorized page or home
+      return NextResponse.redirect(new URL('/unauthorized', request.url));
+    }
+  }
+
   await supabase.auth.getUser()
   return response
+}
+
+// Function to determine if a route requires admin access
+function isAdminRoute(pathname: string): boolean {
+  const adminRoutes = [
+    '/dashboard/create-strategy',
+    '/dashboard/edit-strategy',
+    '/dashboard/upload-strategy',
+    '/api/strategies/create',
+    '/api/strategies/update',
+    '/api/strategies/delete'
+  ];
+  
+  return adminRoutes.some(route => pathname.startsWith(route));
 } 

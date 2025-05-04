@@ -26,74 +26,71 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import Link from "next/link"
-import { ChevronRight, Star, TrendingUp, BarChart3, RefreshCw, BadgeCheck, ShoppingBag, TerminalIcon } from "lucide-react"
+import { ChevronRight, Star, TrendingUp, BarChart3, RefreshCw, BadgeCheck, ShoppingBag, TerminalIcon, LogIn } from "lucide-react"
+import { notFound } from "next/navigation"
+
+// Type definition for strategies
+type Strategy = {
+  id: string;
+  name: string;
+  description: string;
+  price: number;
+  script_code: string;
+  created_by: string;
+  created_at: string;
+  author?: {
+    email: string;
+    role: string;
+  };
+}
 
 export default async function MarketplacePage() {
   // Check if user is authenticated
   const supabase = await createClient()
-  const { data, error } = await supabase.auth.getUser()
+  const { data: userData, error: userError } = await supabase.auth.getUser()
   
-  if (error || !data?.user) {
+  if (userError) {
     redirect('/auth/login')
   }
 
+  // Initialize user role and authentication status
+  let isAdmin = false;
+  let isAuthenticated = !!userData?.user;
+
+  // If user is authenticated, fetch their role from the users table
+  if (isAuthenticated) {
+    const { data: profileData, error: profileError } = await supabase
+      .from('users')
+      .select('role')
+      .eq('id', userData.user.id)
+      .single();
+
+    if (!profileError && profileData) {
+      isAdmin = profileData.role === 'admin';
+    }
+  } else {
+    // If not authenticated, redirect to login
+    redirect('/auth/login');
+  }
+
+  // Fetch all strategies from the database with author information
+  const { data: strategies, error: strategiesError } = await supabase
+    .from('strategies')
+    .select(`
+      *,
+      author:created_by(email, role)
+    `)
+    .order('created_at', { ascending: false });
+
+  if (strategiesError) {
+    console.error("Error fetching strategies:", strategiesError);
+    return notFound();
+  }
+
+  // Get the featured strategy (first one for now, can be improved later)
+  const featuredStrategy = strategies && strategies.length > 0 ? strategies[0] : null;
+
   const sessionId = Math.random().toString(36).substring(2, 10).toUpperCase();
-
-  // Mock strategy data - in a real app, this would come from your database
-  const featuredStrategy = {
-    id: 0,
-    title: "Advanced Volatility Harvester",
-    description: "Our premium strategy that adapts to market volatility and captures significant movements with advanced risk management.",
-    price: "$299",
-    type: "Semi",
-    rating: 4.9,
-    reviews: 124,
-    featured: true
-  };
-
-  const strategies = [
-    {
-      id: 1,
-      title: "Momentum Breakout Strategy",
-      description: "A strategy that identifies and capitalizes on momentum breakouts with risk management and profit targets.",
-      price: "$99",
-      type: "Semi",
-      rating: 4.7,
-      reviews: 86,
-      icon: TrendingUp
-    },
-    {
-      id: 2,
-      title: "Trend Following System",
-      description: "Follows established market trends with multiple timeframe analysis for optimal entry and exit points.",
-      price: "$149",
-      type: "Semi",
-      rating: 4.5,
-      reviews: 62,
-      icon: BarChart3,
-      badge: "TRENDING"
-    },
-    {
-      id: 3,
-      title: "Mean Reversion Strategy",
-      description: "Identifies overbought and oversold market conditions to capture price reversions to the mean.",
-      price: "$129",
-      type: "Semi", 
-      rating: 4.6,
-      reviews: 53,
-      icon: RefreshCw
-    },
-    {
-      id: 4,
-      title: "Scalping Strategy Bundle",
-      description: "A collection of short-term strategies designed for quick market entries and exits with tight risk control.",
-      price: "$199",
-      type: "Semi",
-      rating: 4.8,
-      reviews: 95,
-      icon: TrendingUp
-    },
-  ]
 
   return (
     <SidebarProvider>
@@ -127,9 +124,9 @@ export default async function MarketplacePage() {
           <div className="flex-1 px-4 py-6 bg-black min-h-screen relative"> 
           
           {/* Grid background overlay */}
-          <div className="absolute inset-0 bg-[linear-gradient(to_right,#111_1px,transparent_1px),linear-gradient(to_bottom,#111_1px,transparent_1px)] bg-[size:32px_32px] opacity-20"></div>
+          {/* <div className="absolute inset-0 bg-[linear-gradient(to_right,#111_1px,transparent_1px),linear-gradient(to_bottom,#111_1px,transparent_1px)] bg-[size:32px_32px] opacity-20"></div> */}
           
-          <div className="space-y-10 relative z-10">
+          <div className="space-y-10 relative z-10">            
             <div className="flex items-center mb-6">
               <div className="w-6 h-6 flex items-center justify-center bg-zinc-950 border border-zinc-900 mr-2">
                 <ShoppingBag className="w-3 h-3 text-white" />
@@ -141,11 +138,24 @@ export default async function MarketplacePage() {
             <div className="flex justify-between items-center mb-6">
               <div className="flex space-x-2">
                 <Button asChild variant="outline">
-                  <Link href="/dashboard/my-strategy">My Strategy</Link>
+                  <Link href="/dashboard/my-strategy">Strategy</Link>
                 </Button>
-                <Button asChild variant="default">
-                  <Link href="/dashboard/create-strategy">Create Strategy</Link>
-                </Button>
+                
+                {/* Only show Create Strategy button to admin users */}
+                {isAdmin ? (
+                  <Button asChild variant="default">
+                    <Link href="/dashboard/create-strategy">Create Strategy</Link>
+                  </Button>
+                ) : (
+                  <Button 
+                    variant="outline" 
+                    className="border-zinc-800 bg-zinc-900 opacity-70"
+                    disabled
+                    title="Admin access required"
+                  >
+                    Admin Access Required
+                  </Button>
+                )}
               </div>
               <div className="flex items-center gap-2">
                 <Button variant="outline" size="sm" className="text-sm border-zinc-800 bg-zinc-900">
@@ -172,9 +182,15 @@ export default async function MarketplacePage() {
                   </p>
                   <div className="mt-6 flex flex-wrap gap-3">
                     <Button className="bg-zinc-800 hover:bg-zinc-700 text-white">Browse All Strategies</Button>
-                    <Button variant="outline" className="border-zinc-700 hover:bg-zinc-800">
-                      How It Works
-                    </Button>
+                    {isAdmin ? (
+                      <Button asChild variant="outline" className="border-zinc-700 hover:bg-zinc-800">
+                        <Link href="/dashboard/create-strategy">Upload Strategy</Link>
+                      </Button>
+                    ) : (
+                      <Button variant="outline" className="border-zinc-700 hover:bg-zinc-800">
+                        How It Works
+                      </Button>
+                    )}
                   </div>
                 </div>
                 <div className="flex-shrink-0 hidden md:block">
@@ -187,112 +203,178 @@ export default async function MarketplacePage() {
               </div>
             </div>
             
-            {/* Featured Strategy */}
-            <div className="mb-10">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-2xl font-semibold">Featured Strategy</h2>
-                <Button variant="link" asChild className="text-white flex items-center">
-                  <Link href="/marketplace/featured">
-                    View All Features <ChevronRight className="h-4 w-4 ml-1" />
-                  </Link>
-                </Button>
+            {/* Featured Strategy Section */}
+            {featuredStrategy ? (
+              <div className="mb-10">
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className="text-2xl font-semibold">Featured Strategy</h2>
+                  <Button variant="link" asChild className="text-white flex items-center">
+                    <Link href="/marketplace/featured">
+                      View All Features <ChevronRight className="h-4 w-4 ml-1" />
+                    </Link>
+                  </Button>
+                </div>
+                
+                <Card className="bg-gradient-to-br from-zinc-900 via-zinc-900 to-zinc-800 border-zinc-800 shadow-xl hover:shadow-zinc-900/30 transition-all duration-300 overflow-hidden">
+                  <CardHeader className="pb-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="flex h-6 w-6 items-center justify-center rounded-full bg-zinc-800">
+                        <BadgeCheck className="h-4 w-4 text-white" />
+                      </div>
+                      <span className="text-xs font-medium uppercase text-white">Featured</span>
+                      {/* Admin badge */}
+                      <span className="text-xs font-medium rounded-full bg-indigo-900 px-2 py-0.5 text-white">Admin Verified</span>
+                      <div className="ml-auto flex items-center">
+                        {[...Array(5)].map((_, i) => (
+                          <Star key={i} fill={i < 4 ? "#ffffff" : "none"} 
+                                stroke={i < 4 ? "#ffffff" : "#71717A"} 
+                                className="h-3.5 w-3.5" />
+                        ))}
+                        <span className="ml-1 text-xs text-zinc-400">4.8 (12)</span>
+                      </div>
+                    </div>
+                    <CardTitle className="text-xl font-bold text-white">{featuredStrategy.name}</CardTitle>
+                    <CardDescription className="text-zinc-300 mt-1">{featuredStrategy.description}</CardDescription>
+                  </CardHeader>
+                  <CardContent className="flex items-center pb-6">
+                    <div className="grid grid-cols-3 gap-4 w-full">
+                      <div className="rounded-lg bg-zinc-800/80 p-3">
+                        <div className="text-xs text-zinc-400">Created</div>
+                        <div className="text-lg font-bold text-white">
+                          {new Date(featuredStrategy.created_at).toLocaleDateString()}
+                        </div>
+                      </div>
+                      <div className="rounded-lg bg-zinc-800/80 p-3">
+                        <div className="text-xs text-zinc-400">Author</div>
+                        <div className="text-lg font-bold text-white">
+                          Admin
+                        </div>
+                      </div>
+                      <div className="rounded-lg bg-zinc-800/80 p-3">
+                        <div className="text-xs text-zinc-400">Price</div>
+                        <div className="text-lg font-bold text-white">₹{featuredStrategy.price}</div>
+                      </div>
+                    </div>
+                  </CardContent>
+                  <CardFooter className="flex gap-2 pt-0">
+                    <Button variant="outline" className="flex-1 border-zinc-700 hover:bg-zinc-800" asChild>
+                      <Link href={`/dashboard/strategy/${featuredStrategy.id}`}>View Details</Link>
+                    </Button>
+                    <Button variant="default" className="flex-1 bg-zinc-800 hover:bg-zinc-700">
+                      Buy Strategy
+                    </Button>
+                  </CardFooter>
+                </Card>
               </div>
-              
-              <Card className="bg-gradient-to-br from-zinc-900 via-zinc-900 to-zinc-800 border-zinc-800 shadow-xl hover:shadow-zinc-900/30 transition-all duration-300 overflow-hidden">
-                <CardHeader className="pb-4">
-                  <div className="flex items-center gap-2 mb-2">
-                    <div className="flex h-6 w-6 items-center justify-center rounded-full bg-zinc-800">
-                      <BadgeCheck className="h-4 w-4 text-white" />
-                    </div>
-                    <span className="text-xs font-medium uppercase text-white">{featuredStrategy.type}</span>
-                    <div className="ml-auto flex items-center">
-                      {[...Array(5)].map((_, i) => (
-                        <Star key={i} fill={i < Math.floor(featuredStrategy.rating) ? "#ffffff" : "none"} 
-                              stroke={i < Math.floor(featuredStrategy.rating) ? "#ffffff" : "#71717A"} 
-                              className="h-3.5 w-3.5" />
-                      ))}
-                      <span className="ml-1 text-xs text-zinc-400">{featuredStrategy.rating} ({featuredStrategy.reviews})</span>
-                    </div>
-                  </div>
-                  <CardTitle className="text-xl font-bold text-white">{featuredStrategy.title}</CardTitle>
-                  <CardDescription className="text-zinc-300 mt-1">{featuredStrategy.description}</CardDescription>
-                </CardHeader>
-                <CardContent className="flex items-center pb-6">
-                  <div className="grid grid-cols-3 gap-4 w-full">
-                    <div className="rounded-lg bg-zinc-800/80 p-3">
-                      <div className="text-xs text-zinc-400">Success Rate</div>
-                      <div className="text-lg font-bold text-white">94.2%</div>
-                    </div>
-                    <div className="rounded-lg bg-zinc-800/80 p-3">
-                      <div className="text-xs text-zinc-400">Avg. Return</div>
-                      <div className="text-lg font-bold text-white">+18.7%</div>
-                    </div>
-                    <div className="rounded-lg bg-zinc-800/80 p-3">
-                      <div className="text-xs text-zinc-400">Price</div>
-                      <div className="text-lg font-bold text-white">{featuredStrategy.price}</div>
-                    </div>
-                  </div>
-                </CardContent>
-                <CardFooter className="flex gap-2 pt-0">
-                  <Button variant="outline" className="flex-1 border-zinc-700 hover:bg-zinc-800" asChild>
-                    <Link href={`/dashboard/strategy/${featuredStrategy.id}`}>View Details</Link>
-                  </Button>
-                  <Button variant="default" className="flex-1 bg-zinc-800 hover:bg-zinc-700">
-                    Buy Strategy
-                  </Button>
-                </CardFooter>
-              </Card>
-            </div>
+            ) : null}
             
             {/* Strategy Cards */}
             <div>
               <div className="flex items-center justify-between mb-6">
-                <h2 className="text-2xl font-semibold">Popular Strategies</h2>
+                <h2 className="text-2xl font-semibold">{strategies.length > 0 ? 'All Strategies' : 'No Strategies Available'}</h2>
+                {isAdmin && (
+                  <Button asChild variant="outline" size="sm" className="border-zinc-800 bg-zinc-900 text-sm">
+                    <Link href="/dashboard/create-strategy">
+                      + Add New Strategy
+                    </Link>
+                  </Button>
+                )}
               </div>
               
-              <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                {strategies.map((strategy) => {
-                  const Icon = strategy.icon || TrendingUp;
-                  return (
-                    <Card key={strategy.id} className="relative flex flex-col h-full bg-zinc-900 border-zinc-800 shadow-lg hover:shadow-zinc-900/30 hover:border-zinc-700 transition-all duration-300">
-                      {strategy.badge && (
-                        <div className="absolute right-3 top-3 z-10 bg-zinc-700 text-white text-xs font-bold px-2 py-1 rounded-full shadow-md">
-                          {strategy.badge}
-                        </div>
-                      )}
-                      <CardHeader className="pb-2 pt-6">
-                        <div className="flex items-center mb-2">
-                          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-zinc-800">
-                            <Icon className="h-4 w-4 text-white" />
+              {strategies.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                  {strategies.map((strategy) => {
+                    // Randomly assign an icon for visual purposes
+                    const icons = [TrendingUp, BarChart3, RefreshCw];
+                    const randomIcon = icons[Math.floor(Math.random() * icons.length)];
+                    const Icon = randomIcon;
+                    
+                    return (
+                      <Card key={strategy.id} className="bg-zinc-900 border-zinc-800 transition-all duration-300 hover:shadow-lg overflow-hidden">
+                        <CardHeader className="pb-2">
+                          <div className="flex items-center gap-2 mb-2">
+                            <div className="flex h-6 w-6 items-center justify-center rounded-full bg-zinc-800">
+                              <Icon className="h-4 w-4 text-white" />
+                            </div>
+                            <span className="text-xs font-medium uppercase text-white">Strategy</span>
+                            {strategy.author?.role === 'admin' && (
+                              <span className="bg-gradient-to-r from-indigo-900 to-purple-900 px-2 py-0.5 rounded-full text-xs font-medium">
+                                ADMIN
+                              </span>
+                            )}
+                            <div className="ml-auto flex items-center">
+                              <Star fill="#ffffff" className="h-3 w-3" />
+                              <span className="ml-0.5 text-xs text-zinc-400">4.5</span>
+                            </div>
                           </div>
-                          <div className="ml-auto flex items-center">
-                            {[...Array(5)].map((_, i) => (
-                              <Star key={i} fill={i < Math.floor(strategy.rating) ? "#ffffff" : "none"} 
-                                   stroke={i < Math.floor(strategy.rating) ? "#ffffff" : "#71717A"} 
-                                   className="h-3 w-3" />
-                            ))}
-                            <span className="ml-1 text-xs text-zinc-400">{strategy.rating}</span>
+                          <CardTitle className="text-base font-bold">{strategy.name}</CardTitle>
+                          <CardDescription className="text-xs mt-1 text-zinc-400 line-clamp-2">
+                            {strategy.description}
+                          </CardDescription>
+                        </CardHeader>
+                        <CardContent className="pb-2">
+                          <div className="rounded-lg bg-zinc-800/50 p-2">
+                            <div className="text-xs text-zinc-400">Price</div>
+                            <div className="text-base font-bold">₹{strategy.price}</div>
                           </div>
-                        </div>
-                        <CardTitle className="text-base font-semibold">{strategy.title}</CardTitle>
-                        <CardDescription className="text-xs text-zinc-400 mt-1 line-clamp-2">{strategy.description}</CardDescription>
-                      </CardHeader>
-                      <CardContent className="pb-4 pt-0 px-6">
-                        <div className="flex items-center justify-between text-sm">
-                          <span className="font-medium text-white">{strategy.price}</span>
-                          <span className="text-xs text-zinc-400">{strategy.type} Auto</span>
-                        </div>
-                      </CardContent>
-                      <CardFooter className="mt-auto pt-0">
-                        <Button variant="outline" className="w-full border-zinc-700 hover:bg-zinc-800 text-sm" asChild>
-                          <Link href={`/dashboard/strategy/${strategy.id}`}>View Details</Link>
-                        </Button>
-                      </CardFooter>
-                    </Card>
-                  );
-                })}
-              </div>
+                        </CardContent>
+                        <CardFooter className="flex gap-2 pt-0">
+                          <Button variant="outline" className="w-full text-xs border-zinc-800 hover:bg-zinc-800 py-1" asChild>
+                            <Link href={`/dashboard/strategy/${strategy.id}`}>View Details</Link>
+                          </Button>
+                          {isAdmin && (
+                            <Button 
+                              variant="outline" 
+                              className="w-8 h-8 p-0 text-xs border-zinc-800 hover:bg-zinc-800 hover:text-red-500" 
+                              asChild
+                            >
+                              <Link href={`/dashboard/edit-strategy/${strategy.id}`}>
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+                                  <path d="M12 20h9"></path>
+                                  <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
+                                </svg>
+                              </Link>
+                            </Button>
+                          )}
+                        </CardFooter>
+                      </Card>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="text-center py-16 border border-dashed border-zinc-800 rounded-lg">
+                  <ShoppingBag className="w-12 h-12 mx-auto text-zinc-700 mb-4" />
+                  <h3 className="text-xl font-medium mb-2">No Strategies Available</h3>
+                  <p className="text-zinc-400 max-w-md mx-auto mb-6">
+                    There are no trading strategies in the marketplace yet. 
+                    {isAdmin && ' As an admin, you can be the first to create one!'}
+                  </p>
+                  {isAdmin && (
+                    <Button asChild>
+                      <Link href="/dashboard/create-strategy">
+                        Create First Strategy
+                      </Link>
+                    </Button>
+                  )}
+                </div>
+              )}
             </div>
+            
+            {/* Call to action for users */}
+            {!isAdmin && (
+              <div className="mt-12 rounded-xl border border-zinc-800 bg-zinc-900/50 p-6">
+                <div className="flex flex-col md:flex-row items-center gap-6">
+                  <div className="rounded-full bg-zinc-800 p-4">
+                    <TerminalIcon className="h-8 w-8 text-white" />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="text-lg font-medium">Are you a strategy developer?</h3>
+                    <p className="mt-1 text-zinc-400">Contact an admin to have your Pine Script strategies uploaded to the marketplace.</p>
+                  </div>
+                  <Button className="bg-zinc-800 hover:bg-zinc-700">Contact Us</Button>
+                </div>
+              </div>
+            )}
           </div>
           </div>
         </SidebarInset>
