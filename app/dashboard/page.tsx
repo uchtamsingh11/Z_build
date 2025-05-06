@@ -14,15 +14,10 @@ import {
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { CoinBalanceDisplay } from "@/components/coin-balance-display"
-import { createPageTemplate } from '@/lib/page-templates'
 import {
   Card,
   CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
 } from "@/components/ui/card"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   Table,
   TableBody,
@@ -34,29 +29,13 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { 
-  Activity, 
   ArrowDown, 
   ArrowUp, 
-  Bitcoin, 
-  BookOpen, 
-  ChevronDown, 
-  Clock, 
-  Cpu, 
-  DollarSign, 
-  Euro, 
   Globe, 
-  LucideIcon, 
   Newspaper, 
   PieChart, 
-  Plus, 
-  Settings, 
-  Sigma, 
-  Star,
-  TrendingDown,
   TrendingUp,
-  TerminalIcon,
   ServerIcon,
-  BarChartIcon,
 } from "lucide-react"
 import { TickerTape } from "@/components/tradingview/ticker-tape"
 import { NewsWidget } from "@/components/tradingview/news-widget"

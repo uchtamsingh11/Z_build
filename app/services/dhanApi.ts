@@ -63,9 +63,75 @@ export async function fetchHistoricalData(params: HistoricalDataParams): Promise
     });
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => null);
-      console.error('[Dhan API] Error fetching historical data:', errorData);
-      throw new Error(`Failed to fetch historical data: ${response.status} ${response.statusText}`);
+      // Attempt to parse the error response JSON, but handle any parsing failures
+      let errorMessage = `HTTP ${response.status} ${response.statusText}`;
+      let errorDetails = null;
+      
+      try {
+        // Try to get detailed error information from the response
+        errorDetails = await response.json();
+        
+        // Check if error details is empty (like {})
+        if (errorDetails && Object.keys(errorDetails).length === 0) {
+          console.error('[Dhan API] Empty error response received');
+          errorDetails = { message: 'No error details provided by server' };
+        } else {
+          console.error('[Dhan API] Error response details:', errorDetails);
+        }
+        
+        // Add specific error message if available in the response
+        if (errorDetails?.error) {
+          errorMessage += ` - ${errorDetails.error}`;
+        } else if (errorDetails?.message) {
+          errorMessage += ` - ${errorDetails.message}`;
+        } else if (errorDetails?.details?.message) {
+          errorMessage += ` - ${errorDetails.details.message}`;
+        }
+      } catch (parseError) {
+        // If we can't parse the JSON response, log that too
+        console.error('[Dhan API] Could not parse error response:', parseError);
+        
+        // Try to get the raw text response
+        try {
+          const textResponse = await response.text();
+          if (textResponse) {
+            console.error('[Dhan API] Raw error text:', textResponse);
+            errorMessage += ` - Raw response: ${textResponse.substring(0, 100)}${textResponse.length > 100 ? '...' : ''}`;
+          } else {
+            console.error('[Dhan API] Empty text response received');
+            errorMessage += ' - Empty response from server';
+          }
+        } catch (textError) {
+          console.error('[Dhan API] Failed to get error text:', textError);
+          errorMessage += ' - Could not read error response';
+        }
+      }
+      
+      // Log the complete error information
+      console.error(`[Dhan API] Error fetching historical data: ${errorMessage}`);
+      
+      // Check for specific error conditions we might want to handle in a user-friendly way
+      if (response.status === 401) {
+        throw new Error('Authentication failed. Please check your Dhan API credentials.');
+      } else if (response.status === 429) {
+        throw new Error('Rate limit exceeded. Too many requests to Dhan API.');
+      } else if (response.status === 404) {
+        throw new Error(`Symbol not found: ${params.symbol}. Please verify the security ID.`);
+      } else if (response.status === 400) {
+        // For 400 errors, try to provide more context about what parameter might be wrong
+        if (errorDetails?.details?.securityId) {
+          throw new Error(`Invalid securityId: ${params.symbol}`);
+        } else if (errorDetails?.details?.interval) {
+          throw new Error(`Invalid interval: ${params.interval}`);
+        } else if (errorDetails?.details?.fromDate || errorDetails?.details?.toDate) {
+          throw new Error(`Invalid date range: from ${params.fromDate} to ${params.toDate}`);
+        } else {
+          throw new Error(`Invalid request parameters: ${errorMessage}`);
+        }
+      }
+      
+      // Generic error for other status codes
+      throw new Error(`Failed to fetch historical data: ${errorMessage}`);
     }
 
     const data = await response.json();

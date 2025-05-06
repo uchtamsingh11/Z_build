@@ -117,6 +117,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Make the API request to Dhan
+    console.log(`[Dhan Debug] Sending request to ${endpoint} with params:`, requestParams);
+    
     const response = await fetch(endpoint, {
       method: "POST",
       headers: {
@@ -127,9 +129,30 @@ export async function POST(request: NextRequest) {
       body: JSON.stringify(requestParams),
     });
 
+    console.log(`[Dhan Debug] Response status: ${response.status} ${response.statusText}`);
+    
+    // Log response headers for debugging
+    const responseHeaders: Record<string, string> = {};
+    response.headers.forEach((value, key) => {
+      responseHeaders[key] = value;
+    });
+    console.log('[Dhan Debug] Response headers:', responseHeaders);
+
     if (!response.ok) {
-      const errorData = await response.json().catch(() => null);
-      console.error(`[Dhan API] Error response (${response.status}):`, errorData);
+      let errorBody = null;
+      try {
+        errorBody = await response.json();
+        console.error(`[Dhan API] Detailed error from Dhan API:`, errorBody);
+      } catch (parseError) {
+        console.error(`[Dhan API] Failed to parse error response:`, parseError);
+        // Try to get response text if JSON parsing fails
+        try {
+          const textResponse = await response.text();
+          console.error(`[Dhan API] Raw error response:`, textResponse);
+        } catch (textError) {
+          console.error(`[Dhan API] Could not get response text either:`, textError);
+        }
+      }
       
       // Handle specific error codes
       if (response.status === 401) {
@@ -150,7 +173,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json(
           { 
             error: "Invalid request parameters for Dhan API", 
-            details: errorData 
+            details: errorBody 
           },
           { status: 400 }
         );
@@ -159,7 +182,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { 
           error: "Failed to fetch data from Dhan API",
-          details: errorData 
+          details: errorBody 
         },
         { status: response.status }
       );

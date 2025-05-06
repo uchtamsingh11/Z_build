@@ -801,20 +801,41 @@ export default function AdvancedChartsPage() {
         {/* Error overlay */}
         {dataError && !isLoading && (
           <div className="absolute inset-0 flex items-center justify-center bg-black/50 z-10">
-            <div className="flex flex-col items-center gap-2 max-w-md p-4 bg-[#131722] border border-red-500 rounded-md">
-              <AlertCircle className="w-8 h-8 text-red-500" />
-              <span className="text-white text-center">{dataError}</span>
-              <Button 
-                variant="outline" 
-                size="sm" 
-                className="mt-2" 
-                onClick={() => {
-                  setDataError(null);
-                  fetchChartData();
-                }}
-              >
-                Retry
-              </Button>
+            <div className="flex flex-col items-center gap-2 max-w-md p-6 bg-[#131722] border border-red-500 rounded-md">
+              <div className="flex items-center gap-2 text-red-500 mb-2">
+                <AlertCircle className="w-6 h-6" />
+                <h3 className="text-lg font-medium">Data Loading Error</h3>
+              </div>
+              <div className="text-white text-center mb-4">
+                <p className="mb-2">{dataError}</p>
+                <div className="text-xs text-zinc-400 mt-2 text-left">
+                  <p>Symbol: <span className="text-zinc-300">{currentSymbol}</span></p>
+                  <p>Security ID: <span className="text-zinc-300">{currentSecurityId}</span></p>
+                  <p>Exchange: <span className="text-zinc-300">{currentExchangeSegment}</span></p>
+                  <p>Timeframe: <span className="text-zinc-300">{timeframe}</span></p>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="border-zinc-700 hover:bg-zinc-800"
+                  onClick={() => {
+                    setDataError(null);
+                    fetchChartData();
+                  }}
+                >
+                  Retry
+                </Button>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  className="border-zinc-700 hover:bg-zinc-800" 
+                  onClick={handleOpenSearchPopup}
+                >
+                  Change Symbol
+                </Button>
+              </div>
             </div>
           </div>
         )}
