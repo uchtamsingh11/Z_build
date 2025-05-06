@@ -65,7 +65,7 @@ export default function AdvancedChartsPage() {
   const [selectedTimeframe, setSelectedTimeframe] = useState("1D");
   const router = useRouter();
   const [userEmail, setUserEmail] = useState("user@example.com");
-  const [timeframe, setTimeframe] = useState("D");
+  const [timeframe, setTimeframe] = useState("1m");
   const [chartType, setChartType] = useState<"candlestick" | "bar" | "line">("candlestick");
   const [isConnected, setIsConnected] = useState(true);
   
@@ -101,10 +101,7 @@ export default function AdvancedChartsPage() {
 
     try {
       // Convert UI timeframe to API interval
-      let interval = timeframe;
-      if (timeframe === 'D') interval = '1d';
-      if (timeframe === 'W') interval = '1w';
-      if (timeframe === 'M') interval = '1M';
+      let interval = formatIntervalForDhan(timeframe);
       
       // Prepare date range based on selected timeframe from bottom bar
       let customFromDate: string | undefined;
@@ -141,21 +138,31 @@ export default function AdvancedChartsPage() {
       } else if (selectedTimeframe === 'YTD') {
         const startOfYear = new Date(now.getFullYear(), 0, 1);
         customFromDate = startOfYear.toISOString().split('T')[0];
+      } else {
+        // Default to 1D if no timeframe is selected
+        const yesterday = new Date(now);
+        yesterday.setDate(yesterday.getDate() - 1);
+        customFromDate = yesterday.toISOString().split('T')[0];
       }
-      // 'All' timeframe will use the default behavior of the API which is 30 days
-
-      const formattedInterval = formatIntervalForDhan(interval);
       
-      console.log(`Fetching ${currentSymbol} data with interval ${formattedInterval}, timeframe ${selectedTimeframe}`);
+      console.log(`Fetching ${currentSymbol} data with interval ${interval}, timeframe ${selectedTimeframe}`);
       
       // Format dates specifically for intraday requests if using minute/hour timeframes
       const isIntraday = timeframe.toLowerCase().includes('m') || timeframe.toLowerCase().includes('h');
       let fromDateFormatted = customFromDate;
-      let toDateFormatted = toDate;
+      let toDateFormatted = toDate || new Date().toISOString().split('T')[0];
       
       // For intraday requests, we need to include time component
       if (isIntraday && customFromDate && !customFromDate.includes(':')) {
-        fromDateFormatted = `${customFromDate} 09:15:00`;
+        // For 1 minute data, limit to 1 day to avoid too many candles
+        if (timeframe === '1m' && selectedTimeframe === 'All') {
+          // Limit to last 5 hours for 1-minute data when "All" is selected
+          const fiveHoursAgo = new Date(now);
+          fiveHoursAgo.setHours(fiveHoursAgo.getHours() - 5);
+          fromDateFormatted = fiveHoursAgo.toISOString().split('.')[0].replace('T', ' ');
+        } else {
+          fromDateFormatted = `${customFromDate} 09:15:00`;
+        }
       }
       
       if (isIntraday && toDateFormatted && !toDateFormatted.includes(':')) {
@@ -166,7 +173,7 @@ export default function AdvancedChartsPage() {
         symbol: currentSecurityId,
         exchangeSegment: currentExchangeSegment,
         instrument: 'EQUITY', // Add instrument parameter as required by Dhan API
-        interval: formattedInterval,
+        interval: interval,
         ...(fromDateFormatted && { fromDate: fromDateFormatted }),
         ...(toDateFormatted && { toDate: toDateFormatted })
       });
@@ -245,6 +252,13 @@ export default function AdvancedChartsPage() {
       setIsLoading(false);
     }
   }, [currentSecurityId, currentExchangeSegment, timeframe, selectedTimeframe, chartType, toDate]);
+  
+  // Initial data fetch on component mount
+  useEffect(() => {
+    // Fetch data with default parameters as soon as component mounts
+    fetchChartData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   
   // Session timer
   useEffect(() => {
@@ -359,10 +373,10 @@ export default function AdvancedChartsPage() {
     setSearchError("");
     
     try {
-      // TODO: Connect to Supabase and fetch symbols
+      // Connect to Supabase and fetch symbols from the correct table
       const supabase = createClient();
       const { data, error } = await supabase
-        .from('securities')
+        .from('symbols')
         .select('*')
         .ilike('DISPLAY_NAME', `%${query}%`)
         .limit(20);

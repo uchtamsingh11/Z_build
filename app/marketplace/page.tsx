@@ -20,13 +20,11 @@ import { Button } from "@/components/ui/button"
 import {
   Card,
   CardContent,
-  CardDescription,
   CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
 import Link from "next/link"
-import { ChevronRight, Star, TrendingUp, BarChart3, RefreshCw, BadgeCheck, ShoppingBag, TerminalIcon, LogIn } from "lucide-react"
 import { notFound } from "next/navigation"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
@@ -37,14 +35,8 @@ import { Slider } from "@/components/ui/slider"
 import {
   Search,
   AlertCircle,
-  ArrowUpDown,
-  Filter,
-  ChevronDown,
-  ArrowRight,
-  ChevronsUpDown,
   Bookmark,
   LayoutGrid,
-  Calendar,
   TimerIcon
 } from "lucide-react"
 
