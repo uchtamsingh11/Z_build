@@ -53,7 +53,7 @@ export default function AdvancedChartsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [isDarkMode, setIsDarkMode] = useState(true);
   const [isSearchPopupOpen, setIsSearchPopupOpen] = useState(false);
-  const [currentSymbol, setCurrentSymbol] = useState("BTCUSD");
+  const [currentSymbol, setCurrentSymbol] = useState("RELIANCE");
   const [currentSecurityId, setCurrentSecurityId] = useState("1333"); // Default to RELIANCE
   const [currentExchangeSegment, setCurrentExchangeSegment] = useState("NSE_EQ");
   const [searchResults, setSearchResults] = useState<any[]>([]);
@@ -148,12 +148,27 @@ export default function AdvancedChartsPage() {
       
       console.log(`Fetching ${currentSymbol} data with interval ${formattedInterval}, timeframe ${selectedTimeframe}`);
       
+      // Format dates specifically for intraday requests if using minute/hour timeframes
+      const isIntraday = timeframe.toLowerCase().includes('m') || timeframe.toLowerCase().includes('h');
+      let fromDateFormatted = customFromDate;
+      let toDateFormatted = toDate;
+      
+      // For intraday requests, we need to include time component
+      if (isIntraday && customFromDate && !customFromDate.includes(':')) {
+        fromDateFormatted = `${customFromDate} 09:15:00`;
+      }
+      
+      if (isIntraday && toDateFormatted && !toDateFormatted.includes(':')) {
+        toDateFormatted = `${toDateFormatted} 15:30:00`;
+      }
+      
       const response = await fetchHistoricalData({
         symbol: currentSecurityId,
         exchangeSegment: currentExchangeSegment,
+        instrument: 'EQUITY', // Add instrument parameter as required by Dhan API
         interval: formattedInterval,
-        ...(customFromDate && { fromDate: customFromDate }),
-        ...(toDate && { toDate })
+        ...(fromDateFormatted && { fromDate: fromDateFormatted }),
+        ...(toDateFormatted && { toDate: toDateFormatted })
       });
 
       if (response && response.data && response.data.length > 0) {
@@ -164,9 +179,16 @@ export default function AdvancedChartsPage() {
           // Handle timestamp conversion - if it's a number, convert to proper format
           let timeValue: Time;
           if (typeof point.time === 'number') {
-            // Convert timestamp to YYYY-MM-DD format (required for lightweight-charts)
             const date = new Date(point.time);
-            timeValue = date.toISOString().split('T')[0] as Time;
+            
+            // Format based on timeframe - for intraday we need precise time
+            if (isIntraday) {
+              // For intraday, include time component in ISO format
+              timeValue = Math.floor(point.time / 1000) as Time; // Lightweight charts expects seconds for intraday
+            } else {
+              // For daily charts, just use YYYY-MM-DD format
+              timeValue = date.toISOString().split('T')[0] as Time;
+            }
           } else {
             // Already a string in the right format
             timeValue = point.time as Time;
@@ -206,7 +228,19 @@ export default function AdvancedChartsPage() {
       }
     } catch (error) {
       console.error('Error fetching chart data:', error);
-      setDataError(error instanceof Error ? error.message : 'Failed to load chart data');
+      // Try to extract more useful error message if available
+      const errorMessage = error instanceof Error 
+        ? error.message
+        : 'Failed to load chart data';
+        
+      // Check if the error contains details about authentication
+      if (errorMessage.includes('401') || errorMessage.includes('auth')) {
+        setDataError('Authentication error: Please check your Dhan API credentials');
+      } else if (errorMessage.includes('429')) {
+        setDataError('Rate limit exceeded: Too many requests to Dhan API');
+      } else {
+        setDataError(errorMessage);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -214,174 +248,49 @@ export default function AdvancedChartsPage() {
   
   // Session timer
   useEffect(() => {
+    // Set up timer to track session time
     const timer = setInterval(() => {
-      setSessionTime(prevTime => prevTime + 1);
-    }, 1000);
-    
-    return () => clearInterval(timer);
-  }, []);
-  
-  // Update current time
-  useEffect(() => {
-    const timer = setInterval(() => {
+      setSessionTime(prev => prev + 1);
       setCurrentTime(new Date());
     }, 1000);
     
+    // Clear timer on unmount
     return () => clearInterval(timer);
   }, []);
   
-  // Format session time as HH:MM:SS
-  const formatSessionTime = () => {
-    const hours = Math.floor(sessionTime / 3600);
-    const minutes = Math.floor((sessionTime % 3600) / 60);
-    const seconds = sessionTime % 60;
-    
-    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-  };
-
-  // Format current time
-  const formatCurrentTime = () => {
-    return currentTime.toLocaleTimeString();
-  };
-
-  // Create a debounce function for symbol search
-  const debounce = (func: Function, delay: number) => {
-    let debounceTimer: NodeJS.Timeout;
-    return function(...args: any[]) {
-      clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(() => func(...args), delay);
-    };
-  };
-
-  // Fetch symbols function with error handling
-  const fetchSymbols = async (query: string) => {
-    if (!query.trim()) {
-      setSearchResults([]);
-      return;
-    }
-    
-    try {
-      setIsSearching(true);
-      setSearchError("");
-      
-      const supabase = createClient();
-      const { data, error } = await supabase
-        .from('symbols')
-        .select('DISPLAY_NAME, EXCH_ID, SECURITY_ID')
-        .ilike('DISPLAY_NAME', `%${query}%`)
-        .limit(20);
-      
-      if (error) {
-        console.error('Error fetching symbols:', error);
-        setSearchError("Failed to fetch symbols. Please try again.");
-        setSearchResults([]);
-      } else {
-        setSearchResults(data || []);
-      }
-    } catch (error) {
-      console.error('Error in symbol search:', error);
-      setSearchError("An unexpected error occurred. Please try again.");
-      setSearchResults([]);
-    } finally {
-      setIsSearching(false);
-    }
-  };
-
-  // Create debounced search function
-  const debouncedFetchSymbols = useCallback(
-    debounce((query: string) => fetchSymbols(query), 300),
-    []
-  );
-
-  // Update search when query changes
+  // Additional initialization for chart on component mount
   useEffect(() => {
-    debouncedFetchSymbols(searchQuery);
-  }, [searchQuery, debouncedFetchSymbols]);
-
-  useEffect(() => {
-    // Check for current user and get email
-    const fetchUserEmail = async () => {
-      const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        setUserEmail(user.email || "user@example.com");
-      }
-    };
-    
+    // Fetch user email 
     fetchUserEmail();
-  }, []);
-
-  useEffect(() => {
-    if (!chartContainerRef.current) return;
-    const container = chartContainerRef.current;
     
-    // Apply styles to hide watermark 
-    const style = document.createElement('style');
-    style.textContent = `
-      .tv-lightweight-charts .tv-lightweight-charts__watermark {
-        display: none !important;
-      }
-      .tv-lightweight-charts [class*="watermark"] {
-        display: none !important;
-      }
-      .watermarka, .watermarka-label {
-        display: none !important;
-      }
-    `;
-    document.head.appendChild(style);
-    
-    const chart = createChart(container, {
-      width: container.clientWidth,
-      height: container.clientHeight,
-      layout: {
-        background: { color: isDarkMode ? '#0e0e0e' : '#ffffff' },
-        textColor: isDarkMode ? '#d9d9d9' : '#000',
-        attributionLogo: false,
-      },
-      grid: {
-        vertLines: {
-          color: isDarkMode ? 'rgba(42, 46, 57, 0.5)' : '#eee',
-          style: 1, // 0 - solid, 1 - dotted, 2 - dashed, 3 - large dashed
+    // Initialize chart
+    if (chartContainerRef.current && !chartRef.current) {
+      const chart = createChart(chartContainerRef.current, {
+        layout: {
+          background: { color: isDarkMode ? '#131722' : '#ffffff' },
+          textColor: isDarkMode ? '#D9D9D9' : '#333333',
         },
-        horzLines: {
-          color: isDarkMode ? 'rgba(42, 46, 57, 0.5)' : '#eee',
-          style: 1, // 0 - solid, 1 - dotted, 2 - dashed, 3 - large dashed
+        grid: {
+          vertLines: { color: isDarkMode ? '#1E2131' : '#f0f0f0' },
+          horzLines: { color: isDarkMode ? '#1E2131' : '#f0f0f0' },
         },
-      },
-      timeScale: {
-        timeVisible: true,
-        secondsVisible: false,
-        borderColor: isDarkMode ? 'rgba(42, 46, 57, 0.5)' : '#eee',
-      },
-      rightPriceScale: {
-        borderColor: isDarkMode ? 'rgba(42, 46, 57, 0.5)' : '#eee',
-      },
-      crosshair: {
-        mode: 1, // 0 - normal, 1 - magnet
-        vertLine: {
-          color: isDarkMode ? '#758696' : '#758696',
-          width: 1,
-          style: 1,
-          labelBackgroundColor: isDarkMode ? '#2A2E39' : '#fff',
+        timeScale: {
+          timeVisible: true,
+          secondsVisible: false,
+          borderColor: isDarkMode ? '#2B2B43' : '#d9d9d9',
         },
-        horzLine: {
-          color: isDarkMode ? '#758696' : '#758696',
-          width: 1,
-          style: 1,
-          labelBackgroundColor: isDarkMode ? '#2A2E39' : '#fff',
-        }
-      }
-    });
-    
-    chartRef.current = chart;
-    
-    // Use real data if available, otherwise fallback to mock data
-    const dataToUse = chartData.length > 0 ? chartData : generateMockCandleData();
-    const lineDataToUse = lineChartData.length > 0 ? lineChartData : generateLineData();
-    
-    let series;
-    if (chartType === "candlestick") {
-      series = chart.addSeries(CandlestickSeries, {
+        rightPriceScale: {
+          borderColor: isDarkMode ? '#2B2B43' : '#d9d9d9',
+        },
+        handleScroll: { mouseWheel: true, pressedMouseMove: true },
+        handleScale: { mouseWheel: true, pinch: true },
+      });
+      
+      // Save chart reference
+      chartRef.current = chart;
+      
+      // Add candlestick series by default
+      const candlestickSeries = chart.addSeries(CandlestickSeries, {
         upColor: '#089981',
         downColor: '#f23645',
         borderUpColor: '#089981',
@@ -389,72 +298,125 @@ export default function AdvancedChartsPage() {
         wickUpColor: '#089981',
         wickDownColor: '#f23645',
       });
-      series.setData(dataToUse);
-    } else if (chartType === "bar") {
-      series = chart.addSeries(BarSeries, {
-        upColor: '#089981',
-        downColor: '#f23645',
-      });
-      series.setData(dataToUse);
-    } else if (chartType === "line") {
-      series = chart.addSeries(LineSeries, {
-        color: '#2962FF',
-        lineWidth: 2,
-      });
-      series.setData(lineDataToUse);
-    } else {
-      // Default to candlestick if for some reason chartType is not one of the expected values
-      series = chart.addSeries(CandlestickSeries, {});
-      series.setData(dataToUse);
+      
+      // Save series reference
+      seriesRef.current = candlestickSeries;
+      
+      // Handle window resize 
+      window.addEventListener('resize', handleResize);
     }
     
-    seriesRef.current = series;
-    
-    const handleResize = () => {
-      chart.resize(container.clientWidth, container.clientHeight);
-    };
-    window.addEventListener('resize', handleResize);
+    // Cleanup on unmount
     return () => {
       window.removeEventListener('resize', handleResize);
-      document.head.removeChild(style);
-      chart.remove();
-      chartRef.current = null;
-      seriesRef.current = null;
-    };
-  }, [isDarkMode, chartType, chartData, lineChartData]);
-
-  // Generate fallback mock data when real data is not available yet
-  const generateMockCandleData = (): ChartDataPoint[] => {
-      const data: ChartDataPoint[] = [];
-      const days = 30;
-      let basePrice = 17000;
-      for (let i = 0; i < days; i++) {
-        const date = new Date();
-        date.setDate(date.getDate() - days + i + 1);
-        const timeStr = date.toISOString().split('T')[0];
-        const open = basePrice + Math.random() * 10 - 5;
-        const close = open + Math.random() * 10 - 5;
-        const high = Math.max(open, close) + Math.random() * 5;
-        const low = Math.min(open, close) - Math.random() * 5;
-        data.push({
-          time: timeStr as Time,
-          open: parseFloat(open.toFixed(2)),
-          high: parseFloat(high.toFixed(2)),
-          low: parseFloat(low.toFixed(2)),
-          close: parseFloat(close.toFixed(2)),
-        });
-        basePrice = close;
+      if (chartRef.current) {
+        chartRef.current.remove();
+        chartRef.current = null;
       }
-      return data;
     };
+  }, [isDarkMode]);
+  
+  // Update chart data when data changes
+  useEffect(() => {
+    if (chartRef.current && seriesRef.current) {
+      if (chartType === 'line' && lineChartData.length > 0) {
+        seriesRef.current.setData(lineChartData);
+      } else if (chartData.length > 0) {
+        seriesRef.current.setData(chartData);
+      }
+      
+      // Automatically fit content if we have data
+      if ((chartType === 'line' && lineChartData.length > 0) || 
+          (chartType !== 'line' && chartData.length > 0)) {
+        chartRef.current.timeScale().fitContent();
+      }
+    }
+  }, [chartData, lineChartData, chartType]);
+
+  const formatSessionTime = () => {
+    const hours = Math.floor(sessionTime / 3600);
+    const minutes = Math.floor((sessionTime % 3600) / 60);
+    const seconds = sessionTime % 60;
+    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+  };
+  
+  const formatCurrentTime = () => {
+    return currentTime.toLocaleTimeString(undefined, {hour: '2-digit', minute: '2-digit', second: '2-digit'});
+  };
+  
+  const debounce = (func: Function, delay: number) => {
+    let timeoutId: NodeJS.Timeout;
+    return function(...args: any[]) {
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => func(...args), delay);
+    };
+  };
+  
+  const fetchSymbols = async (query: string) => {
+    if (!query.trim()) return;
     
-  // Generate line chart data (only time and value needed)
-  const generateLineData = (): LineDataPoint[] => {
-    const candleData = generateMockCandleData();
-    return candleData.map(item => ({
-      time: item.time,
-      value: item.close
-    }));
+    setIsSearching(true);
+    setSearchError("");
+    
+    try {
+      // TODO: Connect to Supabase and fetch symbols
+      const supabase = createClient();
+      const { data, error } = await supabase
+        .from('securities')
+        .select('*')
+        .ilike('DISPLAY_NAME', `%${query}%`)
+        .limit(20);
+      
+      if (error) {
+        console.error('Error fetching symbols:', error);
+        setSearchError("Failed to fetch symbols. Please try again later.");
+        return;
+      }
+      
+      setSearchResults(data || []);
+    } catch (error) {
+      console.error('Error in symbol search:', error);
+      setSearchError("An unexpected error occurred while searching. Please try again.");
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  // Debounced search function
+  const debouncedSearch = useCallback(
+    debounce((query: string) => fetchSymbols(query), 300),
+    []
+  );
+
+  // Search effect
+  useEffect(() => {
+    if (searchQuery.trim()) {
+      debouncedSearch(searchQuery);
+    } else {
+      setSearchResults([]);
+    }
+  }, [searchQuery, debouncedSearch]);
+
+  // Fetch user email
+  const fetchUserEmail = async () => {
+    try {
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        setUserEmail(user.email || "user@example.com");
+      }
+    } catch (error) {
+      console.error("Error fetching user email:", error);
+    }
+  };
+  
+  const handleResize = () => {
+    if (chartRef.current && chartContainerRef.current) {
+      chartRef.current.resize(
+        chartContainerRef.current.clientWidth,
+        chartContainerRef.current.clientHeight
+      );
+    }
   };
 
   // Add effect to fetch data when symbol, timeframe, or charting params change
@@ -520,19 +482,38 @@ export default function AdvancedChartsPage() {
           wickUpColor: '#089981',
           wickDownColor: '#f23645',
         });
-        newSeries.setData(chartData.length > 0 ? chartData : generateMockCandleData());
+        
+        // Only use actual data from API, never mock data
+        if (chartData.length > 0) {
+          newSeries.setData(chartData);
+        } else {
+          // Display loading indicator or error message instead of generating mock data
+          setDataError('Waiting for data from Dhan API...');
+        }
       } else if (newType === "bar") {
         newSeries = chartRef.current.addSeries(BarSeries, {
           upColor: '#089981',
           downColor: '#f23645',
         });
-        newSeries.setData(chartData.length > 0 ? chartData : generateMockCandleData());
+        
+        // Only use actual data from API, never mock data
+        if (chartData.length > 0) {
+          newSeries.setData(chartData);
+        } else {
+          setDataError('Waiting for data from Dhan API...');
+        }
       } else if (newType === "line") {
         newSeries = chartRef.current.addSeries(LineSeries, {
           color: '#2962FF',
           lineWidth: 2,
         });
-        newSeries.setData(lineChartData.length > 0 ? lineChartData : generateLineData());
+        
+        // Only use actual data from API, never mock data
+        if (lineChartData.length > 0) {
+          newSeries.setData(lineChartData);
+        } else {
+          setDataError('Waiting for data from Dhan API...');
+        }
       }
       
       seriesRef.current = newSeries;

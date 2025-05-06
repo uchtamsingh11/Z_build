@@ -91,8 +91,9 @@ const SymbolSearchPopup: React.FC<SymbolSearchPopupProps> = ({
     
     const exchange = exchangeId.toUpperCase();
     
+    // Handle Indian exchanges first (highest priority)
     if (exchange.includes('NSE')) {
-      if (exchange.includes('FUT') || exchange.includes('OPT')) {
+      if (exchange.includes('FUT') || exchange.includes('OPT') || exchange.includes('FO')) {
         return 'NSE_FO';
       } else if (exchange.includes('CURR')) {
         return 'NSE_CURR';
@@ -101,11 +102,33 @@ const SymbolSearchPopup: React.FC<SymbolSearchPopupProps> = ({
     }
     
     if (exchange.includes('BSE')) {
+      if (exchange.includes('FUT') || exchange.includes('OPT') || exchange.includes('FO')) {
+        return 'BSE_FO';
+      }
       return 'BSE_EQ';
     }
     
-    // For other exchanges, return as is or map as needed
-    return 'NSE_EQ'; // Default fallback
+    if (exchange.includes('MCX')) {
+      return 'MCX_FO';
+    }
+    
+    // For non-Indian exchanges, map to NSE_EQ as fallback
+    // In a production app, you would either filter these out
+    // or map to appropriate Dhan segments
+    return 'NSE_EQ';
+  };
+
+  // Helper to generate a readable display name for the exchange
+  const getExchangeDisplayName = (exchangeSegment: string): string => {
+    switch (exchangeSegment) {
+      case 'NSE_EQ': return 'NSE';
+      case 'BSE_EQ': return 'BSE';
+      case 'NSE_FO': return 'NSE F&O';
+      case 'BSE_FO': return 'BSE F&O';
+      case 'NSE_CURR': return 'NSE Currency';
+      case 'MCX_FO': return 'MCX';
+      default: return exchangeSegment;
+    }
   };
 
   return (
@@ -207,10 +230,16 @@ const SymbolSearchPopup: React.FC<SymbolSearchPopupProps> = ({
               // Extract symbol from display name
               const symbolParts = item.DISPLAY_NAME.split(' ');
               const symbolText = symbolParts[0];
+              
               // Get symbol type based on exchange
               const symbolType = getSymbolType(item.EXCH_ID || '');
+              
               // Get Dhan exchange segment format
               const exchangeSegment = getExchangeSegment(item.EXCH_ID || '');
+              
+              // Get human-readable exchange name
+              const exchangeDisplayName = getExchangeDisplayName(exchangeSegment);
+              
               // Convert security ID to string
               const securityId = item.SECURITY_ID?.toString() || "";
               
@@ -232,7 +261,7 @@ const SymbolSearchPopup: React.FC<SymbolSearchPopupProps> = ({
                       <div className="flex items-center">
                         <span className="text-base font-medium">{symbolText}</span>
                         <span className={`ml-3 text-sm ${isDarkMode ? "text-zinc-400" : "text-zinc-500"}`}>
-                          {item.EXCH_ID}
+                          {exchangeDisplayName}
                         </span>
                       </div>
                       <div className="text-sm text-gray-500">
@@ -258,9 +287,14 @@ const SymbolSearchPopup: React.FC<SymbolSearchPopupProps> = ({
             </div>
           )}
         </div>
+        
+        {/* Footer with info */}
+        <div className={`border-t p-4 text-center text-sm ${isDarkMode ? "border-zinc-800 text-zinc-400" : "border-zinc-200 text-zinc-500"}`}>
+          Searching in Dhan-supported symbols only • Use exchange prefix for more precise results
+        </div>
       </div>
 
-      {/* CSS for animation */}
+      {/* Global styles for the popup animation */}
       <style jsx global>{`
         @keyframes popupFadeIn {
           from {
