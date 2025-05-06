@@ -43,14 +43,14 @@ export async function POST(request: NextRequest) {
     }
 
     // Set default date range if not provided (last 30 days)
-    const toDate = customToDate || new Date().toISOString().split("T")[0]; // Today in YYYY-MM-DD format
+    const toDateValue = customToDate || new Date().toISOString().split("T")[0]; // Today in YYYY-MM-DD format
     
     // Calculate fromDate (30 days ago) if not provided
-    let fromDate = customFromDate;
-    if (!fromDate) {
+    let fromDateValue = customFromDate;
+    if (!fromDateValue) {
       const date = new Date();
       date.setDate(date.getDate() - 30);
-      fromDate = date.toISOString().split("T")[0];
+      fromDateValue = date.toISOString().split("T")[0];
     }
 
     // Determine if we need daily or intraday data based on interval
@@ -68,28 +68,34 @@ export async function POST(request: NextRequest) {
 
     console.log(`[Dhan API] Making ${isIntraday ? 'intraday' : 'daily'} request to ${endpoint}`);
 
+    // Format dates if needed
+    let formattedFromDate = fromDateValue;
+    let formattedToDate = toDateValue;
+    
+    // For intraday, ensure dates include time component (HH:MM:SS)
+    if (isIntraday) {
+      if (!fromDateValue.includes(":")) {
+        formattedFromDate = `${fromDateValue} 09:15:00`;
+      }
+      
+      if (!toDateValue.includes(":")) {
+        formattedToDate = `${toDateValue} 15:30:00`;
+      }
+    }
+
     // Prepare request params based on Dhan API requirements
     let requestParams: DhanHistoricalRequestParams | DhanIntradayRequestParams = {
       securityId: symbol,
       exchangeSegment: exchangeSegment.toUpperCase(),
       instrument: instrument.toUpperCase(), 
-      fromDate: fromDate,
-      toDate: toDate,
+      fromDate: formattedFromDate,
+      toDate: formattedToDate,
       oi: oi
     };
 
     // Add interval parameter for intraday requests
     if (isIntraday) {
       (requestParams as DhanIntradayRequestParams).interval = interval;
-      
-      // For intraday, check if dates include time (HH:MM:SS)
-      if (!fromDate.includes(":")) {
-        (requestParams as DhanIntradayRequestParams).fromDate = `${fromDate} 09:15:00`;
-      }
-      
-      if (!toDate.includes(":")) {
-        (requestParams as DhanIntradayRequestParams).toDate = `${toDate} 15:30:00`;
-      }
     }
 
     // Add expiry code if provided (for derivatives)

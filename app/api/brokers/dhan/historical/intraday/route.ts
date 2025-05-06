@@ -44,7 +44,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Set default date range if not provided (last 5 days for intraday)
-    const toDate = customToDate || new Date().toISOString().split("T")[0]; // Today in YYYY-MM-DD format
+    const toDateValue = customToDate || new Date().toISOString().split("T")[0]; // Today in YYYY-MM-DD format
     
     // Calculate fromDate (5 days ago) if not provided - Dhan limits intraday to 90 days
     let fromDate = customFromDate;
@@ -55,13 +55,8 @@ export async function POST(request: NextRequest) {
     }
     
     // Ensure dates have time component for intraday
-    if (!fromDate.includes(":")) {
-      fromDate = `${fromDate} 09:15:00`;
-    }
-    
-    if (!toDate.includes(":")) {
-      toDate = `${toDate} 15:30:00`;
-    }
+    let formattedFromDate = !fromDate.includes(":") ? `${fromDate} 09:15:00` : fromDate;
+    let formattedToDate = !toDateValue.includes(":") ? `${toDateValue} 15:30:00` : toDateValue;
 
     // Construct the Dhan intraday API endpoint
     const endpoint = "https://api.dhan.co/v2/charts/intraday";
@@ -74,8 +69,8 @@ export async function POST(request: NextRequest) {
       exchangeSegment: exchangeSegment.toUpperCase(),
       instrument: instrument.toUpperCase(),
       interval: interval,
-      fromDate: fromDate,
-      toDate: toDate,
+      fromDate: formattedFromDate,
+      toDate: formattedToDate,
       oi: oi
     };
 
