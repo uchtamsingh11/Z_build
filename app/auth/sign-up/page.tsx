@@ -25,7 +25,7 @@ function SignupContent() {
     <div className="min-h-screen w-full flex flex-col items-center justify-center bg-black text-white font-mono relative">
       <div className="w-full max-w-sm">
         <div className="mb-8 flex items-center justify-center gap-2">
-          <BackButton />
+          {/* <BackButton /> */}
           <span className="text-xs tracking-widest uppercase text-zinc-400 ml-2">System: Sign Up</span>
         </div>
         <div className="bg-zinc-950 border border-zinc-900 rounded-xl shadow-md p-6">
