@@ -68,7 +68,7 @@ export default function Home() {
                                     preset="fade-in-blur"
                                     speedSegment={0.3}
                                     as="h1"
-                                    className="mt-8 text-balance text-6xl md:text-5xl lg:mt-16 xl:text-[4.25rem] font-mono uppercase tracking-wider">
+                                    className="mt-8 text-balance text-4xl sm:text-5xl md:text-6xl lg:mt-16 xl:text-[4.25rem] font-mono uppercase tracking-wider leading-tight">
                                     ALGOZ: TRADING_SMARTER
                                 </TextEffect>
                                 <TextEffect
@@ -131,7 +131,7 @@ export default function Home() {
                 
                 {/* Pricing heading */}
                 <div id="pricing" className="mx-auto max-w-6xl px-6 pt-16 pb-8 text-center">
-                    <h2 className="text-4xl font-medium lg:text-5xl text-white font-mono uppercase tracking-wider">PRICING_PLAN</h2>
+                    <h2 className="text-3xl sm:text-4xl lg:text-5xl font-medium text-white font-mono uppercase tracking-wider leading-tight">PRICING_PLAN</h2>
                     <p className="mt-4 text-zinc-400 font-mono">CHOOSE_THE_PLAN_THAT_BEST_FITS_YOUR_TRADING_NEEDS</p>
                 </div>
                 

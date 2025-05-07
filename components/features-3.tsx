@@ -6,23 +6,23 @@ import { ReactNode } from 'react'
 
 export default function Features() {
     return (
-        <section className="bg-black py-16 md:py-32 relative" id="features">
+        <section className="bg-black py-12 sm:py-16 md:py-24 lg:py-32 relative" id="features">
             {/* Grid background overlay */}
             {/* <div className="absolute inset-0 bg-[linear-gradient(to_right,#111_1px,transparent_1px),linear-gradient(to_bottom,#111_1px,transparent_1px)] bg-[size:32px_32px] opacity-20"></div> */}
             
-            <div className="mx-auto max-w-6xl px-6 relative z-10">
-                <div className="text-center mb-12">
+            <div className="mx-auto max-w-6xl px-4 sm:px-6 relative z-10">
+                <div className="text-center mb-8 sm:mb-12">
                     <div className="flex items-center justify-center mb-3">
                         <div className="w-8 h-8 flex items-center justify-center bg-zinc-950 border border-zinc-900 mr-3">
                             <Settings className="w-4 h-4 text-white" />
                         </div>
-                        <h2 className="text-4xl font-semibold lg:text-5xl text-white font-mono uppercase tracking-wider break-words text-wrap">ADVANCED_FEATURES</h2>
+                        <h2 className="text-3xl sm:text-4xl lg:text-5xl font-semibold text-white font-mono uppercase tracking-wider break-words text-wrap leading-tight">ADVANCED_FEATURES</h2>
                     </div>
                     <p className="mt-4 text-zinc-400 font-mono break-words text-wrap">ALGORITHMIC_TRADING_SOLUTIONS_FOR_MODERN_TRADERS</p>
                 </div>
                 
                 <Card className="mx-auto mt-8 grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x overflow-hidden shadow-zinc-900/20 text-center md:mt-16 bg-black border-zinc-800">
-                    <div className="group shadow-zinc-900/10 hover:bg-zinc-900/50 transition-colors duration-300 p-2 sm:p-4">
+                    <div className="group shadow-zinc-900/10 hover:bg-zinc-900/50 transition-colors duration-300 p-4 sm:p-6 md:p-8">
                         <CardHeader className="pb-3">
                             <CardDecorator>
                                 <LineChart className="size-6 text-white" aria-hidden />
@@ -34,7 +34,7 @@ export default function Features() {
                         </CardContent>
                     </div>
 
-                    <div className="group shadow-zinc-900/10 hover:bg-zinc-900/50 transition-colors duration-300 p-2 sm:p-4">
+                    <div className="group shadow-zinc-900/10 hover:bg-zinc-900/50 transition-colors duration-300 p-4 sm:p-6 md:p-8">
                         <CardHeader className="pb-3">
                             <CardDecorator>
                                 <BarChart3 className="size-6 text-white" aria-hidden />
@@ -46,7 +46,7 @@ export default function Features() {
                         </CardContent>
                     </div>
 
-                    <div className="group shadow-zinc-900/10 hover:bg-zinc-900/50 transition-colors duration-300 p-2 sm:p-4">
+                    <div className="group shadow-zinc-900/10 hover:bg-zinc-900/50 transition-colors duration-300 p-4 sm:p-6 md:p-8">
                         <CardHeader className="pb-3">
                             <CardDecorator>
                                 <UsersRound className="size-6 text-white" aria-hidden />
@@ -60,7 +60,7 @@ export default function Features() {
                 </Card>
                 
                 <Card className="mx-auto mt-8 grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x overflow-hidden shadow-zinc-900/20 text-center bg-black border-zinc-800">
-                    <div className="group shadow-zinc-900/10 hover:bg-zinc-900/50 transition-colors duration-300 p-2 sm:p-4">
+                    <div className="group shadow-zinc-900/10 hover:bg-zinc-900/50 transition-colors duration-300 p-4 sm:p-6 md:p-8">
                         <CardHeader className="pb-3">
                             <CardDecorator>
                                 <Store className="size-6 text-white" aria-hidden />
@@ -72,7 +72,7 @@ export default function Features() {
                         </CardContent>
                     </div>
 
-                    <div className="group shadow-zinc-900/10 hover:bg-zinc-900/50 transition-colors duration-300 p-2 sm:p-4">
+                    <div className="group shadow-zinc-900/10 hover:bg-zinc-900/50 transition-colors duration-300 p-4 sm:p-6 md:p-8">
                         <CardHeader className="pb-3">
                             <CardDecorator>
                                 <Code className="size-6 text-white" aria-hidden />
@@ -84,7 +84,7 @@ export default function Features() {
                         </CardContent>
                     </div>
 
-                    <div className="group shadow-zinc-900/10 hover:bg-zinc-900/50 transition-colors duration-300 p-2 sm:p-4">
+                    <div className="group shadow-zinc-900/10 hover:bg-zinc-900/50 transition-colors duration-300 p-4 sm:p-6 md:p-8">
                         <CardHeader className="pb-3">
                             <CardDecorator>
                                 <Settings className="size-6 text-white" aria-hidden />

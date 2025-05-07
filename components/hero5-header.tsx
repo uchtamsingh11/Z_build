@@ -44,7 +44,7 @@ export const HeroHeader = () => {
                             <button
                                 onClick={() => setMenuState(!menuState)}
                                 aria-label={menuState == true ? 'Close Menu' : 'Open Menu'}
-                                className="relative z-20 -m-2.5 -mr-4 block cursor-pointer p-2.5 lg:hidden">
+                                className="relative z-20 -m-2.5 -mr-4 block min-h-10 min-w-12 cursor-pointer p-2.5 lg:hidden">
                                 <Menu className="in-data-[state=active]:rotate-180 in-data-[state=active]:scale-0 in-data-[state=active]:opacity-0 m-auto size-6 duration-200 text-white" />
                                 <X className="in-data-[state=active]:rotate-0 in-data-[state=active]:scale-100 in-data-[state=active]:opacity-100 absolute inset-0 m-auto size-6 -rotate-180 scale-0 opacity-0 duration-200 text-white" />
                             </button>
@@ -56,7 +56,7 @@ export const HeroHeader = () => {
                                     <li key={index}>
                                         <Link
                                             href={item.href}
-                                            className="text-zinc-400 hover:text-white block duration-150 font-mono uppercase tracking-wider">
+                                            className="text-zinc-400 hover:text-white block duration-150 font-mono uppercase tracking-wider px-2 py-2">
                                             <span>{item.name}</span>
                                         </Link>
                                     </li>
@@ -71,7 +71,7 @@ export const HeroHeader = () => {
                                         <li key={index}>
                                             <Link
                                                 href={item.href}
-                                                className="text-zinc-400 hover:text-white block duration-150 font-mono uppercase tracking-wider">
+                                                className="text-zinc-400 hover:text-white block duration-150 font-mono uppercase tracking-wider min-h-10 px-4 py-3 flex items-center">
                                                 <span>{item.name}</span>
                                             </Link>
                                         </li>
@@ -82,7 +82,7 @@ export const HeroHeader = () => {
                                 <Button
                                     asChild
                                     size="sm"
-                                    className="lg:inline-flex rounded-md bg-white hover:bg-zinc-100 text-black border font-mono">
+                                    className="lg:inline-flex rounded-md bg-white hover:bg-zinc-100 text-black border font-mono min-h-10 px-5">
                                     <Link href="/auth">
                                         <span className="uppercase">LOGIN</span>
                                     </Link>
