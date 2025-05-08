@@ -17,7 +17,6 @@ import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { CoinBalanceDisplay } from "@/components/coin-balance-display"
 import BrokerAuthContent from "@/components/broker-auth/broker-auth-content"
-import { TerminalIcon } from "lucide-react"
 
 export default async function Page() {
   // Check if user is authenticated

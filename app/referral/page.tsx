@@ -38,7 +38,15 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Skeleton } from "@/components/ui/skeleton"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { 
+  BarChart, 
+  Users, 
+  DollarSign, 
+  History, 
+  Share2, 
+  Copy, 
+  CheckCircle 
+} from "lucide-react"
 
 interface Referral {
   id: string
@@ -58,6 +66,7 @@ export default function ReferralPage() {
   const [user, setUser] = useState<any>(null)
   const { showNotification } = useNotification()
   const supabase = createClient()
+  const [isLinkCopied, setIsLinkCopied] = useState(false)
   
   // Analytics states
   const [isAnalyticsLoading, setIsAnalyticsLoading] = useState(true)
@@ -326,13 +335,28 @@ export default function ReferralPage() {
       minute: '2-digit'
     })
   }
+  
+  const copyToClipboard = () => {
+    if (referralCode) {
+      navigator.clipboard.writeText(`${window.location.origin}/sign-up?ref=${referralCode}`)
+      setIsLinkCopied(true)
+      
+      showNotification({
+        title: 'Copied!',
+        description: 'Referral link copied to clipboard',
+        type: 'success'
+      })
+      
+      setTimeout(() => setIsLinkCopied(false), 2000)
+    }
+  }
 
   return (
     <SidebarProvider>
       <div className="grid min-h-screen w-full grid-cols-[auto_1fr] bg-zinc-950 text-zinc-100">
         <AppSidebar />
         <SidebarInset>
-          <header className="flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-[[data-collapsible=icon]]/sidebar-wrapper:h-12">
+          <header className="flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-[[data-collapsible=icon]]/sidebar-wrapper:h-12 border-b border-zinc-900">
             <div className="flex items-center gap-2 px-4">
               <SidebarTrigger className="-ml-1" />
               <Separator orientation="vertical" className="mr-2 h-4" />
@@ -356,168 +380,169 @@ export default function ReferralPage() {
             </div>
           </header>
           
-          <div className="flex-1 px-4 py-6 bg-black min-h-screen relative">
-          {/* <div className="absolute inset-0 bg-[linear-gradient(to_right,#111_1px,transparent_1px),linear-gradient(to_bottom,#111_1px,transparent_1px)] bg-[size:32px_32px] opacity-20"></div> */}
-            <h1 className="text-3xl font-bold mb-6">Referrals</h1>
-            
-            <Tabs defaultValue="manage" className="w-full">
-              <TabsList className="grid w-full md:w-[400px] grid-cols-2">
-                <TabsTrigger value="manage">Manage Code</TabsTrigger>
-                <TabsTrigger value="analytics">Analytics</TabsTrigger>
-              </TabsList>
+          <div className="flex-1 bg-black min-h-screen relative">
+            <div className="p-4 md:p-6 space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-2">
+                <h1 className="text-2xl md:text-3xl font-bold">Referrals</h1>
+              </div>
               
-              <TabsContent value="manage" className="mt-6">
-                <Card className="w-full max-w-md mx-auto">
-                  <CardHeader>
-                    <CardTitle>Your Referral Code</CardTitle>
-                    <CardDescription>
+              <div className="w-full max-w-md mx-auto space-y-6">
+                {/* Main referral card */}
+                <Card className="border border-zinc-800 bg-zinc-900/50">
+                  <CardHeader className="pb-2">
+                    <div className="flex items-center space-x-2">
+                      <div className="w-6 h-6 flex items-center justify-center bg-zinc-800 rounded-full">
+                        <Share2 className="h-3 w-3 text-white" />
+                      </div>
+                      <CardTitle className="text-base md:text-lg">Your Referral Code</CardTitle>
+                    </div>
+                    <CardDescription className="text-xs text-zinc-400 mt-1">
                       Create a unique referral code for others to use
                     </CardDescription>
                   </CardHeader>
-                  <CardContent className="p-6">
+                  <CardContent className="p-4 md:p-6">
                     <div className="flex flex-col space-y-4">
                       <div className="flex space-x-2">
                         <Input
                           placeholder="Enter your referral code"
                           value={referralCode}
                           onChange={(e) => setReferralCode(e.target.value)}
-                          className="flex-1"
+                          className="flex-1 bg-zinc-800 border-zinc-700 text-zinc-200"
                         />
                         <Button 
                           onClick={handleGenerateReferral}
                           disabled={isLoading}
+                          className="bg-zinc-800 hover:bg-zinc-700 border border-zinc-700"
                         >
                           {isLoading ? 'Generating...' : 'Generate'}
                         </Button>
                       </div>
                       
                       {referralCode && (
-                        <div className="mt-4 p-4 bg-zinc-900 rounded-md">
-                          <p className="text-sm text-zinc-400 mb-1">Share this link with friends:</p>
-                          <p className="text-sm font-mono bg-zinc-800 p-2 rounded border border-zinc-700 break-all">
-                            {`${window.location.origin}/sign-up?ref=${referralCode}`}
-                          </p>
+                        <div className="mt-2 p-3 md:p-4 bg-zinc-800 rounded-md border border-zinc-700">
+                          <p className="text-xs md:text-sm text-zinc-400 mb-1">Share this link with friends:</p>
+                          <div className="flex items-center mt-2">
+                            <p className="text-xs md:text-sm font-mono bg-zinc-900 p-2 rounded border border-zinc-700 break-all flex-1 truncate">
+                              {`${window.location.origin}/sign-up?ref=${referralCode}`}
+                            </p>
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              className="ml-2 text-zinc-400 hover:text-white hover:bg-zinc-700"
+                              onClick={copyToClipboard}
+                            >
+                              {isLinkCopied ? (
+                                <CheckCircle className="h-4 w-4 text-green-500" />
+                              ) : (
+                                <Copy className="h-4 w-4" />
+                              )}
+                            </Button>
+                          </div>
                         </div>
                       )}
-
                     </div>
                   </CardContent>
                 </Card>
-              </TabsContent>
-              
-              <TabsContent value="analytics" className="mt-6">
-                {!referralCode ? (
-                  <Card>
-                    <CardContent className="p-6 flex items-center justify-center">
-                      <p className="text-zinc-400">Please generate a referral code first</p>
-                    </CardContent>
-                  </Card>
-                ) : (
-                  <>
-                    <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 mb-8">
-                      {/* Summary Cards */}
-                      <Card>
-                        <CardHeader className="pb-2">
-                          <CardTitle className="text-sm font-medium">
-                            Total Users Referred
-                          </CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                          {isAnalyticsLoading ? (
-                            <Skeleton className="h-10 w-20" />
-                          ) : (
-                            <div className="text-3xl font-bold">{totalUsers}</div>
-                          )}
-                        </CardContent>
-                      </Card>
-                      
-                      <Card>
-                        <CardHeader className="pb-2">
-                          <CardTitle className="text-sm font-medium">
-                            Total Revenue Generated
-                          </CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                          {isAnalyticsLoading ? (
-                            <Skeleton className="h-10 w-28" />
-                          ) : (
-                            <div className="text-3xl font-bold">
-                              ${totalRevenue.toFixed(2)}
-                            </div>
-                          )}
-                        </CardContent>
-                      </Card>
-                      
-                      <Card>
-                        <CardHeader className="pb-2">
-                          <CardTitle className="text-sm font-medium">
-                            Avg. Revenue Per Referral
-                          </CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                          {isAnalyticsLoading ? (
-                            <Skeleton className="h-10 w-24" />
-                          ) : (
-                            <div className="text-3xl font-bold">
-                              ${totalUsers > 0 ? (totalRevenue / totalUsers).toFixed(2) : '0.00'}
-                            </div>
-                          )}
-                        </CardContent>
-                      </Card>
-                    </div>
-                    
-                    {/* Referrals Table */}
-                    <Card>
-                      <CardHeader>
-                        <CardTitle>Referral History</CardTitle>
-                        <CardDescription>
-                          All users who signed up using your referral code
-                        </CardDescription>
-                      </CardHeader>
-                      <CardContent>
+                
+                {/* Stats summary */}
+                {referralCode && (
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    {/* Total Users Card */}
+                    <Card className="border border-zinc-800 bg-zinc-900/50">
+                      <CardContent className="p-3 md:p-4 flex flex-col">
+                        <div className="flex items-center gap-2 mb-1">
+                          <Users className="h-3.5 w-3.5 text-zinc-400" />
+                          <p className="text-xs text-zinc-400">Total Users</p>
+                        </div>
+                        
                         {isAnalyticsLoading ? (
-                          <div className="space-y-2">
-                            <Skeleton className="h-6 w-full" />
-                            <Skeleton className="h-12 w-full" />
-                            <Skeleton className="h-12 w-full" />
-                            <Skeleton className="h-12 w-full" />
+                          <Skeleton className="h-7 w-12 mt-1" />
+                        ) : (
+                          <div className="text-xl md:text-2xl font-bold mt-1">{totalUsers}</div>
+                        )}
+                      </CardContent>
+                    </Card>
+                    
+                    {/* Revenue Card */}
+                    <Card className="border border-zinc-800 bg-zinc-900/50">
+                      <CardContent className="p-3 md:p-4 flex flex-col">
+                        <div className="flex items-center gap-2 mb-1">
+                          <DollarSign className="h-3.5 w-3.5 text-zinc-400" />
+                          <p className="text-xs text-zinc-400">Revenue</p>
+                        </div>
+                        
+                        {isAnalyticsLoading ? (
+                          <Skeleton className="h-7 w-20 mt-1" />
+                        ) : (
+                          <div className="text-xl md:text-2xl font-bold mt-1">${totalRevenue.toFixed(2)}</div>
+                        )}
+                      </CardContent>
+                    </Card>
+                    
+                    {/* Average Card */}
+                    <Card className="border border-zinc-800 bg-zinc-900/50">
+                      <CardContent className="p-3 md:p-4 flex flex-col">
+                        <div className="flex items-center gap-2 mb-1">
+                          <BarChart className="h-3.5 w-3.5 text-zinc-400" />
+                          <p className="text-xs text-zinc-400">Avg. Revenue</p>
+                        </div>
+                        
+                        {isAnalyticsLoading ? (
+                          <Skeleton className="h-7 w-20 mt-1" />
+                        ) : (
+                          <div className="text-xl md:text-2xl font-bold mt-1">
+                            ${totalUsers > 0 ? (totalRevenue / totalUsers).toFixed(2) : '0.00'}
                           </div>
-                        ) : referrals.length > 0 ? (
+                        )}
+                      </CardContent>
+                    </Card>
+                  </div>
+                )}
+                
+                {/* Last few referrals */}
+                {referralCode && referrals.length > 0 && (
+                  <Card className="border border-zinc-800 bg-zinc-900/50">
+                    <CardHeader className="p-3 pb-0">
+                      <div className="flex items-center gap-2">
+                        <History className="h-3.5 w-3.5 text-zinc-400" />
+                        <CardTitle className="text-sm">Recent Referrals</CardTitle>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="p-3 pt-2">
+                      {isAnalyticsLoading ? (
+                        <div className="space-y-2">
+                          <Skeleton className="h-5 w-full" />
+                          <Skeleton className="h-5 w-full" />
+                        </div>
+                      ) : (
+                        <div className="border border-zinc-800 rounded-md overflow-hidden">
                           <Table>
                             <TableHeader>
-                              <TableRow>
-                                <TableHead>User</TableHead>
-                                <TableHead className="hidden md:table-cell">Date</TableHead>
-                                <TableHead className="text-right">Amount</TableHead>
+                              <TableRow className="bg-zinc-800/50 hover:bg-zinc-800/70">
+                                <TableHead className="text-xs text-zinc-400 font-medium">User</TableHead>
+                                <TableHead className="text-right text-xs text-zinc-400 font-medium">Amount</TableHead>
                               </TableRow>
                             </TableHeader>
                             <TableBody>
-                              {referrals.map((referral) => (
-                                <TableRow key={referral.id}>
-                                  <TableCell className="font-medium">
+                              {referrals.slice(0, 3).map((referral) => (
+                                <TableRow key={referral.id} className="border-t border-zinc-800 hover:bg-zinc-800/30">
+                                  <TableCell className="text-xs py-1.5">
                                     {referral.referred_user_email}
                                   </TableCell>
-                                  <TableCell className="hidden md:table-cell">
-                                    {formatDate(referral.paid_at)}
-                                  </TableCell>
-                                  <TableCell className="text-right">
+                                  <TableCell className="text-right text-xs py-1.5">
                                     ${referral.amount.toFixed(2)}
                                   </TableCell>
                                 </TableRow>
                               ))}
                             </TableBody>
                           </Table>
-                        ) : (
-                          <div className="text-center py-6 text-zinc-500">
-                            No referrals found. Share your referral code to get started!
-                          </div>
-                        )}
-                      </CardContent>
-                    </Card>
-                  </>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
                 )}
-              </TabsContent>
-            </Tabs>
+              </div>
+            </div>
           </div>
         </SidebarInset>
       </div>
