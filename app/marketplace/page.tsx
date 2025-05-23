@@ -138,8 +138,8 @@ export default async function MarketplacePage() {
     <SidebarProvider>
       <div className="grid min-h-screen w-full grid-cols-[auto_1fr] bg-black text-white font-mono">
         <AppSidebar />
-        <SidebarInset>
-          <header className="flex h-16 shrink-0 items-center gap-2 border-b border-zinc-900 px-4">
+        <SidebarInset className="flex flex-col h-screen overflow-hidden">
+          <header className="sticky top-0 z-50 flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-[[data-collapsible=icon]]/sidebar-wrapper:h-12 border-b border-zinc-900 bg-black/95 backdrop-blur supports-[backdrop-filter]:bg-black/60">
             <SidebarTrigger className="-ml-1" />
             <Separator orientation="vertical" className="mx-2 h-4" />
             <div className="text-sm font-medium">Strategy Marketplace</div>
@@ -148,7 +148,7 @@ export default async function MarketplacePage() {
             </div>
           </header>
 
-          <div className="flex-1 bg-black min-h-screen relative">
+          <div className="flex-1 overflow-y-auto bg-black">
             <div className="absolute inset-0 bg-[linear-gradient(to_right,#111_1px,transparent_1px),linear-gradient(to_bottom,#111_1px,transparent_1px)] bg-[size:32px_32px] opacity-10"></div>
             
             <div className="relative z-10 mx-auto max-w-7xl px-4 py-6">

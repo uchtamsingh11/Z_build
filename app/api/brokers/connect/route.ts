@@ -4,7 +4,7 @@ import { NextResponse } from 'next/server';
 export async function POST(request: Request) {
   try {
     const supabase = await createClient();
-    const { broker_name, credentials } = await request.json();
+    const { broker_name, credentials, redirect_url } = await request.json();
     
     // Check if user is authenticated
     const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -29,6 +29,7 @@ export async function POST(request: Request) {
       user_id: user.id,
       broker_name,
       credentials,
+      redirect_url,
       is_active: false
     }).select().single();
     

@@ -47,105 +47,109 @@ export async function POST(request: Request) {
     
     // Extract API Key and Secret Key for possible token refresh
     const { 'App ID': clientId, 'Secret Key': secretKey } = broker.credentials;
-
-    // Verify the token by making a request to the Fyers API
+    
+    // Make a request to Fyers API to check if the token is valid
     try {
-      // For example, fetching the user profile
       const profileResponse = await fetch(`${FYERS_API_URL}/profile`, {
         headers: {
           'Authorization': `Bearer ${accessToken}`,
         },
       });
+      
+      // If the request succeeds, the token is valid
+      if (profileResponse.ok) {
+        // Mark the broker as active
+        const { error: updateError } = await supabase
+          .from('broker_credentials')
+          .update({ is_active: true })
+          .eq('id', broker_id);
 
-      if (!profileResponse.ok) {
-        // Check if the token has expired
-        const errorData = await profileResponse.json();
+        if (updateError) {
+          throw updateError;
+        }
         
-        if (errorData.s === 'error' && (errorData.message.includes('token') || errorData.message.includes('auth'))) {
-          // Token has expired, try to refresh it
-          const { 'Refresh Token': refreshToken } = broker.credentials;
+        return NextResponse.json({
+          success: true,
+          message: 'Fyers broker verified successfully'
+        });
+      }
+      
+      // If we get here, the token is invalid or expired
+      const errorData = await profileResponse.json();
+      
+      // If token is expired and we have refresh token, try to refresh it
+      if (profileResponse.status === 401 && broker.credentials['Refresh Token']) {
+        // Try to refresh the token
+        const refreshResponse = await fetch(FYERS_TOKEN_URL, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            grant_type: 'refresh_token',
+            refresh_token: broker.credentials['Refresh Token'],
+            client_id: clientId,
+            client_secret: secretKey,
+          }),
+        });
+        
+        if (refreshResponse.ok) {
+          // Token refresh successful
+          const refreshData = await refreshResponse.json();
           
-          if (refreshToken) {
-            // Attempt to refresh the token
-            const refreshResponse = await fetch(FYERS_TOKEN_URL, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                grant_type: 'refresh_token',
-                refresh_token: refreshToken,
-                client_id: clientId,
-                client_secret: secretKey,
-              }),
-            });
+          // Update the credentials with new tokens
+          const updatedCredentials = {
+            ...broker.credentials,
+            'Access Token': refreshData.access_token,
+            'Refresh Token': refreshData.refresh_token || broker.credentials['Refresh Token'],
+            'Expires In': refreshData.expires_in || 86400,
+          };
+          
+          // Calculate expiry timestamp (current time + expires_in seconds)
+          const expiresAt = new Date();
+          expiresAt.setSeconds(expiresAt.getSeconds() + (refreshData.expires_in || 86400));
+          
+          // Save the updated credentials
+          const { error: updateError } = await supabase
+            .from('broker_credentials')
+            .update({ 
+              credentials: updatedCredentials,
+              access_token: refreshData.access_token,
+              token_expiry: expiresAt.toISOString()
+            })
+            .eq('id', broker_id);
 
-            if (!refreshResponse.ok) {
-              // Token refresh failed, return error
-              return NextResponse.json(
-                { error: 'Failed to refresh token' },
-                { status: 401 }
-              );
-            }
+          if (updateError) {
+            throw updateError;
+          }
+          
+          // Try the profile request again with the new token
+          const newProfileResponse = await fetch(`${FYERS_API_URL}/profile`, {
+            headers: {
+              'Authorization': `Bearer ${refreshData.access_token}`,
+            },
+          });
 
-            // Parse the refresh response
-            const refreshData = await refreshResponse.json();
-            
-            // Update the broker credentials with the new tokens
-            const updatedCredentials = {
-              ...broker.credentials,
-              'Access Token': refreshData.access_token,
-              'Refresh Token': refreshData.refresh_token || refreshToken,
-              'Token Type': refreshData.token_type || 'Bearer',
-              'Expires In': refreshData.expires_in || 86400,
-            };
-            
-            // Calculate expiry timestamp (current time + expires_in seconds)
-            const expiresAt = new Date();
-            expiresAt.setSeconds(expiresAt.getSeconds() + (refreshData.expires_in || 86400));
-            
-            // Save the updated credentials
-            const { error: updateError } = await supabase
-              .from('broker_credentials')
-              .update({ 
-                credentials: updatedCredentials,
-                access_token: refreshData.access_token,
-                token_expiry: expiresAt.toISOString()
-              })
-              .eq('id', broker_id);
-
-            if (updateError) {
-              throw updateError;
-            }
-            
-            // Try the profile request again with the new token
-            const newProfileResponse = await fetch(`${FYERS_API_URL}/profile`, {
-              headers: {
-                'Authorization': `Bearer ${refreshData.access_token}`,
-              },
-            });
-
-            if (!newProfileResponse.ok) {
-              // Still failing, return error
-              return NextResponse.json(
-                { error: 'Failed to authenticate with Fyers API after token refresh' },
-                { status: 401 }
-              );
-            }
-          } else {
-            // No refresh token available
+          if (!newProfileResponse.ok) {
+            // Still failing, return error
             return NextResponse.json(
-              { error: 'Access token expired and no refresh token available' },
+              { error: 'Failed to authenticate with Fyers API after token refresh' },
               { status: 401 }
             );
           }
         } else {
-          // Other API error
+          // No refresh token available
           return NextResponse.json(
-            { error: `Fyers API error: ${errorData.message || 'Unknown error'}` },
-            { status: 500 }
+            { error: 'Access token expired and no refresh token available' },
+            { status: 401 }
           );
         }
+      } else {
+        // Other API error
+        return NextResponse.json(
+          { error: `Fyers API error: ${errorData.message || 'Unknown error'}` },
+          { status: 500 }
+        );
       }
 
       // Verification successful
@@ -156,17 +160,15 @@ export async function POST(request: Request) {
     } catch (apiError: any) {
       return NextResponse.json(
         { 
-          success: false, 
-          error: 'Failed to verify with Fyers API', 
-          details: apiError.message || 'Unknown error' 
+          error: 'Failed to verify Fyers token',
+          details: apiError.message || 'Unknown error'
         },
         { status: 500 }
       );
     }
-
   } catch (error: any) {
     return NextResponse.json(
-      { error: error.message || 'Failed to verify Fyers broker' },
+      { error: error.message || 'Failed to verify Fyers credentials' },
       { status: 500 }
     );
   }

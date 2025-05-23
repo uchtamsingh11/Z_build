@@ -1,6 +1,6 @@
 # Fyers Integration
 
-This document outlines the Fyers broker integration in our system, using the Fyers REST API v3.
+This document outlines the Fyers broker integration in our system, using the Fyers API v3.
 
 ## Integration Overview
 
@@ -8,7 +8,7 @@ The Fyers integration follows the same pattern as our other broker integrations:
 
 1. Users provide their Fyers App ID and Secret Key
 2. The credentials are stored in the database
-3. When the broker is activated, the system initiates OAuth authentication with Fyers's API
+3. When the broker is activated, the system initiates OAuth authentication with Fyers' API
 4. The tokens are stored and used for subsequent API calls
 
 ## Flow Details
@@ -33,14 +33,10 @@ The Fyers integration follows the same pattern as our other broker integrations:
 
 ## API Endpoints
 
-1. `/api/brokers/fyers/oauth`: Initiates the OAuth flow to authenticate with Fyers's API
+1. `/api/brokers/fyers/oauth`: Initiates the OAuth flow to authenticate with Fyers' API
 2. `/api/brokers/fyers/callback`: Handles the OAuth callback from Fyers, exchanges code for tokens
-3. `/api/brokers/fyers/verify`: Verifies the token by making a call to Fyers's profile API and handles token refresh
+3. `/api/brokers/fyers/verify`: Verifies the token by making a call to Fyers' profile API and handles token refresh
 4. `/api/brokers/fyers/deactivate`: Marks the broker as inactive in the database
-5. `/api/brokers/fyers/place-order`: Places an order through Fyers
-6. `/api/brokers/fyers/cancel-order`: Cancels an existing order
-7. `/api/brokers/fyers/get-funds`: Fetches user's funds and margin details
-8. `/api/brokers/fyers/get-positions`: Fetches user's current positions
 
 ## Database Schema
 

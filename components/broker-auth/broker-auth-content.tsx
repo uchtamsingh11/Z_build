@@ -27,11 +27,13 @@ type BrokerCredential = {
   credentials: Record<string, string>;
   is_active: boolean;
   created_at: string;
+  redirect_url?: string;
 };
 
 type AvailableBrokerConfig = {
   name: string;
   fields: string[];
+  redirect_url?: string;
 };
 
 // List of available brokers with their required fields
@@ -41,17 +43,19 @@ const AVAILABLE_BROKERS: AvailableBrokerConfig[] = [
   { name: 'Angel Broking', fields: ['API Key', 'Secret Key'] },
   { name: 'Binance', fields: ['App Key', 'Secret Key'] },
   { name: 'Delta Exchange', fields: ['API Key', 'Secret Key'] },
-  { name: 'Dhan', fields: ['Client ID', 'Access Token'] },
+  { name: 'Dhan', fields: ['Client ID', 'Access Token'], redirect_url: 'https://www.algoz.tech/api/brokers/dhan/callback' },
   { name: 'Finvasia', fields: ['User ID', 'Password', 'Vendor Code', 'API Key', '2FA'] },
-  { name: 'Fyers', fields: ['App ID', 'Secret Key'] },
+  { name: 'Fyers', fields: ['App ID', 'Secret Key'], redirect_url: 'https://www.algoz.tech/api/brokers/fyers/callback' },
   { name: 'ICICI Direct', fields: ['User ID', 'API Key', 'Secret Key', 'DOB', 'Password'] },
   { name: 'IIFL', fields: ['Interactive API Key', 'Interactive Secret Key', 'Market API Key', 'Secret Key'] },
   { name: 'Kotak Neo', fields: ['Consumer Key', 'Secret Key', 'Access Token', 'Mobile No.', 'Password', 'MPIN'] },
   { name: 'MetaTrader 4', fields: ['User ID', 'Password', 'Host', 'Port'] },
   { name: 'MetaTrader 5', fields: ['User ID', 'Password', 'Host', 'Port'] },
-  { name: 'Upstox', fields: ['API Key', 'Secret Key'] },
-  { name: 'Zerodha', fields: ['API Key', 'Secret Key'] },
+  { name: 'Upstox', fields: ['API Key', 'Secret Key'], redirect_url: 'https://www.algoz.tech/api/brokers/upstox/callback' },
 ];
+
+// List of brokers that use OAuth authentication
+const OAUTH_BROKERS = ['Upstox', 'Dhan', 'Fyers'];
 
 const fadeInVariants = {
   hidden: { opacity: 0 },
@@ -73,6 +77,106 @@ export default function BrokerAuthContent() {
   useEffect(() => {
     fetchSavedBrokers();
   }, []);
+
+  // Handle Dhan OAuth callback completion
+  useEffect(() => {
+    const handleDhanAuthCallback = async (event: MessageEvent) => {
+      // Ensure we only handle messages from our own domain
+      if (event.origin !== window.location.origin) return;
+      
+      // Check if this is a Dhan auth success message
+      if (event.data && event.data.type === 'DHAN_AUTH_SUCCESS') {
+        // Get the broker ID from localStorage
+        const brokerId = localStorage.getItem('dhan_auth_broker_id');
+        
+        if (!brokerId) {
+          showNotification({
+            title: 'DHAN_AUTH_ERROR',
+            description: 'Authentication failed: Unable to identify broker.',
+            type: 'error',
+            duration: 5000
+          });
+          return;
+        }
+        
+        // Clear the broker ID from localStorage
+        localStorage.removeItem('dhan_auth_broker_id');
+        
+        // Verify the authentication was successful
+        const response = await fetch('/api/brokers/dhan/verify', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ broker_id: brokerId }),
+        });
+        
+        if (!response.ok) {
+          showNotification({
+            title: 'DHAN_AUTH_ERROR',
+            description: 'Failed to verify authentication.',
+            type: 'error',
+            duration: 5000
+          });
+          
+          // Set the broker as inactive
+          setSavedBrokers(prev => prev.map(b => b.id === brokerId ? { ...b, is_active: false } : b));
+          
+          // Remove this broker from loading state
+          setLoadingBrokers(prev => prev.filter(id => id !== brokerId));
+          return;
+        }
+        
+        // Authentication successful
+        setSavedBrokers(prev => prev.map(b => b.id === brokerId ? { ...b, is_active: true } : b));
+        
+        showNotification({
+          title: 'DHAN_AUTH_SUCCESS',
+          description: 'Your Dhan broker connection is now active and ready to use.',
+          type: 'success',
+          duration: 3000
+        });
+        
+        // Create a session for the authenticated broker
+        await createOrUpdateSession(brokerId, true);
+        
+        // Remove this broker from loading state
+        setLoadingBrokers(prev => prev.filter(id => id !== brokerId));
+      }
+      
+      // Check if this is a Dhan auth failure message
+      if (event.data && event.data.type === 'DHAN_AUTH_FAILURE') {
+        // Get the broker ID from localStorage
+        const brokerId = localStorage.getItem('dhan_auth_broker_id');
+        
+        if (brokerId) {
+          // Clear the broker ID from localStorage
+          localStorage.removeItem('dhan_auth_broker_id');
+          
+          // Set the broker as inactive
+          setSavedBrokers(prev => prev.map(b => b.id === brokerId ? { ...b, is_active: false } : b));
+          
+          // Remove this broker from loading state
+          setLoadingBrokers(prev => prev.filter(id => id !== brokerId));
+        }
+        
+        showNotification({
+          title: 'DHAN_AUTH_FAILED',
+          description: event.data.error || 'Authentication failed. Please try again.',
+          type: 'error',
+          duration: 5000
+        });
+      }
+    };
+    
+    // Add event listener for message events
+    window.addEventListener('message', handleDhanAuthCallback);
+    
+    // Remove event listener on cleanup
+    return () => {
+      window.removeEventListener('message', handleDhanAuthCallback);
+    };
+  }, [showNotification, setSavedBrokers, setLoadingBrokers]);
 
   // Handle Upstox OAuth callback completion
   useEffect(() => {
@@ -225,22 +329,23 @@ export default function BrokerAuthContent() {
         // Authentication successful
         setSavedBrokers(prev => prev.map(b => b.id === brokerId ? { ...b, is_active: true } : b));
         
+        showNotification({
+          title: 'FYERS_AUTH_SUCCESS',
+          description: 'Your Fyers broker connection is now active and ready to use.',
+          type: 'success',
+          duration: 3000
+        });
+        
         // Create a session for the authenticated broker
         await createOrUpdateSession(brokerId, true);
         
         // Remove this broker from loading state
         setLoadingBrokers(prev => prev.filter(id => id !== brokerId));
-        
-        showNotification({
-          title: 'FYERS_AUTH_SUCCESS',
-          description: 'Fyers has been successfully connected.',
-          type: 'success',
-          duration: 5000
-        });
       }
       
-      // Handle Fyers auth failure
+      // Check if this is an Fyers auth failure message
       if (event.data && event.data.type === 'FYERS_AUTH_FAILURE') {
+        // Get the broker ID from localStorage
         const brokerId = localStorage.getItem('fyers_auth_broker_id');
         
         if (brokerId) {
@@ -255,8 +360,8 @@ export default function BrokerAuthContent() {
         }
         
         showNotification({
-          title: 'FYERS_AUTH_ERROR',
-          description: event.data.error || 'Authentication failed.',
+          title: 'FYERS_AUTH_FAILED',
+          description: event.data.error || 'Authentication failed. Please try again.',
           type: 'error',
           duration: 5000
         });
@@ -266,11 +371,11 @@ export default function BrokerAuthContent() {
     // Add event listener for message events
     window.addEventListener('message', handleFyersAuthCallback);
     
-    // Clean up the event listener when the component unmounts
+    // Remove event listener on cleanup
     return () => {
       window.removeEventListener('message', handleFyersAuthCallback);
     };
-  }, []);
+  }, [showNotification, setSavedBrokers, setLoadingBrokers]);
 
   const fetchSavedBrokers = async () => {
     try {
@@ -303,78 +408,11 @@ export default function BrokerAuthContent() {
       // Start loading state for this specific broker
       setLoadingBrokers(prev => [...prev, broker.id]);
       
-      // For AngelOne broker, use specialized authentication endpoints
-      if (broker.broker_name === 'Angel One') {
-        if (newStatus) {
-          // Attempting to activate AngelOne broker - needs authentication
-          const response = await fetch('/api/brokers/angelone/authenticate', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ broker_id: broker.id }),
-          });
-          
-          if (!response.ok) {
-            const errorData = await response.json();
-            // Toggle automatically reverts to OFF on auth failure
-            setSavedBrokers(prev => prev.map(b => b.id === broker.id ? { ...b, is_active: false } : b));
-            
-            // Show error notification
-            showNotification({
-              title: 'Login denied by AngelOne',
-              description: `${errorData.details?.message || errorData.details?.error || errorData.error || 'Authentication failed'} 
-              ${errorData.status ? `(Status: ${errorData.status} ${errorData.statusText})` : ''}
-              ${errorData.endpoint ? `Endpoint: ${errorData.endpoint}` : ''}`,
-              type: 'error',
-            });
-            
-            // Remove this broker from loading state
-            setLoadingBrokers(prev => prev.filter(id => id !== broker.id));
-            return;
-          }
-          
-          // Authentication successful
-          setSavedBrokers(prev => prev.map(b => b.id === broker.id ? { ...b, is_active: true } : b));
-          
-          showNotification({
-            title: 'AngelOne broker authenticated successfully',
-            type: 'success',
-          });
-        } else {
-          // Deactivating AngelOne broker
-          const response = await fetch('/api/brokers/angelone/deactivate', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ broker_id: broker.id }),
-          });
-          
-          if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error || 'Failed to deactivate broker');
-          }
-          
-          // Broker deactivated successfully
-          setSavedBrokers(prev => prev.map(b => b.id === broker.id ? { ...b, is_active: false } : b));
-          
-          showNotification({
-            title: 'AngelOne broker deactivated',
-            type: 'success',
-          });
-        }
-        
-        // Remove this broker from loading state
-        setLoadingBrokers(prev => prev.filter(id => id !== broker.id));
-        return;
-      }
-      
       // For Dhan broker, use specialized authentication endpoints
       if (broker.broker_name === 'Dhan') {
         if (newStatus) {
-          // Attempting to activate Dhan broker - needs authentication
-          const response = await fetch('/api/brokers/dhan/authenticate', {
+          // Attempting to activate Dhan broker - needs OAuth authentication
+          const response = await fetch('/api/brokers/dhan/oauth', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -400,18 +438,29 @@ export default function BrokerAuthContent() {
             return;
           }
           
-          // Authentication successful
-          setSavedBrokers(prev => prev.map(b => b.id === broker.id ? { ...b, is_active: true } : b));
+          // If the response is successful, we should get a URL to redirect to
+          const data = await response.json();
           
+          if (data.redirect_url) {
+            // Open the Dhan authorization page in a new window
+            const authWindow = window.open(data.redirect_url, 'DhanAuth', 'width=600,height=700');
+            
+            // Save the broker ID to localStorage to retrieve it when the OAuth callback returns
+            localStorage.setItem('dhan_auth_broker_id', broker.id);
+            
+            // The rest of the authentication will be handled by the callback endpoint
+            // Keep this broker in loading state until callback resolves
+            return;
+          }
+          
+          // If we get here, something went wrong
+          setSavedBrokers(prev => prev.map(b => b.id === broker.id ? { ...b, is_active: false } : b));
           showNotification({
-            title: 'DHAN_AUTH_SUCCESS',
-            description: 'Your Dhan broker connection is now active and ready to use.',
-            type: 'success',
-            duration: 3000
+            title: 'DHAN_AUTH_ERROR',
+            description: 'Failed to initiate Dhan OAuth flow.',
+            type: 'error',
+            duration: 5000
           });
-
-          // Create a session for the authenticated broker
-          await createOrUpdateSession(broker.id, true);
         } else {
           // Deactivating Dhan broker
           const response = await fetch('/api/brokers/dhan/deactivate', {
@@ -439,88 +488,6 @@ export default function BrokerAuthContent() {
 
           // Deactivate the session for this broker
           await createOrUpdateSession(broker.id, false);
-        }
-        
-        // Remove this broker from loading state
-        setLoadingBrokers(prev => prev.filter(id => id !== broker.id));
-        return;
-      }
-      
-      // For Upstox broker, use specialized OAuth authentication
-      if (broker.broker_name === 'Upstox') {
-        if (newStatus) {
-          // Attempting to activate Upstox broker - needs OAuth authentication
-          const response = await fetch('/api/brokers/upstox/oauth', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ broker_id: broker.id }),
-          });
-          
-          if (!response.ok) {
-            const errorData = await response.json();
-            // Toggle automatically reverts to OFF on auth failure
-            setSavedBrokers(prev => prev.map(b => b.id === broker.id ? { ...b, is_active: false } : b));
-            
-            // Show error notification
-            showNotification({
-              title: 'UPSTOX_AUTH_FAILED',
-              description: `Broker authentication failed. Please check your credentials and try again.`,
-              type: 'error',
-              duration: 5000
-            });
-            
-            // Remove this broker from loading state
-            setLoadingBrokers(prev => prev.filter(id => id !== broker.id));
-            return;
-          }
-          
-          // If the response is successful, we should get a URL to redirect to
-          const data = await response.json();
-          
-          if (data.redirect_url) {
-            // Open the Upstox authorization page in a new window
-            const authWindow = window.open(data.redirect_url, 'UpstoxAuth', 'width=600,height=700');
-            
-            // Save the broker ID to localStorage to retrieve it when the OAuth callback returns
-            localStorage.setItem('upstox_auth_broker_id', broker.id);
-            
-            // The rest of the authentication will be handled by the callback endpoint
-            // Keep this broker in loading state until callback resolves
-            return;
-          }
-          
-          // If we get here, something went wrong
-          setSavedBrokers(prev => prev.map(b => b.id === broker.id ? { ...b, is_active: false } : b));
-          showNotification({
-            title: 'UPSTOX_AUTH_ERROR',
-            description: 'Failed to initiate Upstox OAuth flow.',
-            type: 'error',
-            duration: 5000
-          });
-        } else {
-          // Deactivating Upstox broker
-          const response = await fetch('/api/brokers/upstox/deactivate', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ broker_id: broker.id }),
-          });
-          
-          if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error || 'Failed to deactivate broker');
-          }
-          
-          // Broker deactivated successfully
-          setSavedBrokers(prev => prev.map(b => b.id === broker.id ? { ...b, is_active: false } : b));
-          
-          showNotification({
-            title: 'Upstox broker deactivated',
-            type: 'success',
-          });
         }
         
         // Remove this broker from loading state
@@ -634,13 +601,24 @@ export default function BrokerAuthContent() {
 
   const openConnectModal = (broker: AvailableBrokerConfig) => {
     setSelectedBroker(broker);
-    setFieldValues({});
+    setFieldValues({
+      // If it's an OAuth broker, initialize the redirect_url field with default value
+      ...(OAUTH_BROKERS.includes(broker.name) && broker.redirect_url 
+          ? { 'Redirect URL': broker.redirect_url } 
+          : {})
+    });
     setIsConnectModalOpen(true);
   };
 
   const openEditModal = (broker: BrokerCredential) => {
     setEditingBroker(broker);
-    setFieldValues(broker.credentials);
+    // Merge credentials with redirect_url if it's an OAuth broker
+    const values = { ...broker.credentials };
+    if (OAUTH_BROKERS.includes(broker.broker_name)) {
+      values['Redirect URL'] = broker.redirect_url || 
+        AVAILABLE_BROKERS.find(b => b.name === broker.broker_name)?.redirect_url || '';
+    }
+    setFieldValues(values);
     setIsEditModalOpen(true);
   };
 
@@ -661,6 +639,15 @@ export default function BrokerAuthContent() {
         throw new Error(`Please fill in all required fields: ${missingFields.join(', ')}`);
       }
       
+      // Extract and remove redirect URL from fields if present
+      const credentials = { ...fieldValues };
+      let redirectUrl = selectedBroker.redirect_url;
+      
+      if (OAUTH_BROKERS.includes(selectedBroker.name) && credentials['Redirect URL']) {
+        redirectUrl = credentials['Redirect URL'];
+        delete credentials['Redirect URL'];
+      }
+      
       const response = await fetch('/api/brokers/connect', {
         method: 'POST',
         headers: {
@@ -668,7 +655,8 @@ export default function BrokerAuthContent() {
         },
         body: JSON.stringify({
           broker_name: selectedBroker.name,
-          credentials: fieldValues,
+          credentials,
+          redirect_url: redirectUrl
         }),
       });
       
@@ -719,13 +707,23 @@ export default function BrokerAuthContent() {
         throw new Error(`Please fill in all required fields: ${missingFields.join(', ')}`);
       }
       
+      // Extract and remove redirect URL from fields if present
+      const credentials = { ...fieldValues };
+      let redirectUrl = brokerConfig.redirect_url;
+      
+      if (OAUTH_BROKERS.includes(editingBroker.broker_name) && credentials['Redirect URL']) {
+        redirectUrl = credentials['Redirect URL'];
+        delete credentials['Redirect URL'];
+      }
+      
       const response = await fetch(`/api/brokers/${editingBroker.id}`, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          credentials: fieldValues,
+          credentials,
+          redirect_url: redirectUrl
         }),
       });
       
@@ -928,6 +926,21 @@ export default function BrokerAuthContent() {
               </div>
             ))}
             
+            {/* Add Redirect URL field for OAuth brokers */}
+            {selectedBroker && OAUTH_BROKERS.includes(selectedBroker.name) && (
+              <div className="space-y-2">
+                <Label htmlFor="redirect_url" className="text-xs font-mono text-zinc-400">REDIRECT URL</Label>
+                <Input
+                  id="redirect_url"
+                  value={fieldValues['Redirect URL'] || ''}
+                  onChange={(e) => handleInputChange('Redirect URL', e.target.value)}
+                  placeholder="Enter Redirect URL"
+                  className="bg-zinc-900 border-zinc-800 text-zinc-300 placeholder:text-zinc-600 focus:border-zinc-700 focus:ring-0 font-mono"
+                />
+                <p className="text-xs text-zinc-500">OAuth callback URL for your application</p>
+              </div>
+            )}
+            
             {selectedBroker?.name === 'Dhan' && (
               <div className="p-3 border border-zinc-800 rounded bg-zinc-900/30 text-xs text-zinc-400 mt-4">
                 <p>Step 1: Save your Dhan credentials</p>
@@ -979,6 +992,21 @@ export default function BrokerAuthContent() {
                 />
               </div>
             ))}
+            
+            {/* Add Redirect URL field for OAuth brokers when editing */}
+            {editingBroker && OAUTH_BROKERS.includes(editingBroker.broker_name) && (
+              <div className="space-y-2">
+                <Label htmlFor="edit-redirect_url" className="text-xs font-mono text-zinc-400">REDIRECT URL</Label>
+                <Input
+                  id="edit-redirect_url"
+                  value={fieldValues['Redirect URL'] || ''}
+                  onChange={(e) => handleInputChange('Redirect URL', e.target.value)}
+                  placeholder="Enter Redirect URL"
+                  className="bg-zinc-900 border-zinc-800 text-zinc-300 placeholder:text-zinc-600 focus:border-zinc-700 focus:ring-0 font-mono"
+                />
+                <p className="text-xs text-zinc-500">OAuth callback URL for your application</p>
+              </div>
+            )}
             
             {editingBroker?.broker_name === 'Dhan' && (
               <div className="p-3 border border-zinc-800 rounded bg-zinc-900/30 text-xs text-zinc-400 mt-4">

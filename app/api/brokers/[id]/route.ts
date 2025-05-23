@@ -12,7 +12,7 @@ export async function PATCH(
     // Extract the ID from params Promise
     const { id } = await params;
     const requestData = await request.json();
-    const { is_active, credentials } = requestData;
+    const { is_active, credentials, redirect_url } = requestData;
     
     // Check if user is authenticated
     const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -25,7 +25,11 @@ export async function PATCH(
     }
     
     // Prepare update data based on what was provided
-    const updateData: { is_active?: boolean; credentials?: Record<string, string> } = {};
+    const updateData: { 
+      is_active?: boolean; 
+      credentials?: Record<string, string>;
+      redirect_url?: string;
+    } = {};
     
     if (typeof is_active === 'boolean') {
       updateData.is_active = is_active;
@@ -33,6 +37,10 @@ export async function PATCH(
     
     if (credentials) {
       updateData.credentials = credentials;
+    }
+    
+    if (redirect_url !== undefined) {
+      updateData.redirect_url = redirect_url;
     }
     
     // Make sure we have something to update

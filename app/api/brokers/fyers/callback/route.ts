@@ -1,21 +1,23 @@
 import { createClient } from '@/lib/supabase/server';
-import { NextResponse } from 'next/server';
 
 // Environment variables (would normally be in .env)
-const FYERS_API_URL = process.env.FYERS_API_URL || 'https://api-t1.fyers.in/api/v3';
 const FYERS_TOKEN_URL = process.env.FYERS_TOKEN_URL || 'https://api.fyers.in/api/v2/token';
 const FYERS_REDIRECT_URI = process.env.FYERS_REDIRECT_URI || 'https://www.algoz.tech/api/brokers/fyers/callback';
 
 export async function GET(request: Request) {
   try {
+    console.log("Fyers callback received");
     const url = new URL(request.url);
     const code = url.searchParams.get('code');
     const state = url.searchParams.get('state');
     const error = url.searchParams.get('error');
     const errorDescription = url.searchParams.get('error_description');
     
+    console.log("Fyers callback params:", { code, state, error, errorDescription });
+    
     // If there's an error, close the window with an error message
     if (error) {
+      console.error("Fyers auth error:", error, errorDescription);
       return new Response(`
         <!DOCTYPE html>
         <html>
@@ -43,6 +45,7 @@ export async function GET(request: Request) {
     
     // Check if code and state are present
     if (!code || !state) {
+      console.error("Missing code or state parameter:", { code, state });
       return new Response(`
         <!DOCTYPE html>
         <html>
@@ -80,6 +83,7 @@ export async function GET(request: Request) {
       .single();
     
     if (brokerError || !broker) {
+      console.error("Invalid state parameter or broker not found:", brokerError);
       return new Response(`
         <!DOCTYPE html>
         <html>
@@ -109,6 +113,7 @@ export async function GET(request: Request) {
     const { 'App ID': clientId, 'Secret Key': secretKey } = broker.credentials;
     
     if (!clientId || !secretKey) {
+      console.error("Missing required credentials");
       return new Response(`
         <!DOCTYPE html>
         <html>
@@ -134,7 +139,12 @@ export async function GET(request: Request) {
       });
     }
     
+    // Use redirect_url from broker record if available, otherwise use default
+    const redirectUri = broker.redirect_url || FYERS_REDIRECT_URI;
+    
     // Exchange the authorization code for an access token
+    console.log("Exchanging code for token with params:", { grant_type: 'authorization_code', code, client_id: clientId, redirect_uri: redirectUri });
+    
     const tokenResponse = await fetch(FYERS_TOKEN_URL, {
       method: 'POST',
       headers: {
@@ -145,16 +155,23 @@ export async function GET(request: Request) {
         code,
         client_id: clientId,
         client_secret: secretKey,
-        redirect_uri: FYERS_REDIRECT_URI,
+        redirect_uri: redirectUri,
       }),
     });
     
+    console.log("Token exchange response status:", tokenResponse.status);
+    
     if (!tokenResponse.ok) {
       let errorMessage = 'Failed to exchange code for token';
+      let errorDetails;
+      
       try {
         const errorData = await tokenResponse.json();
+        console.error("Token exchange error response:", errorData);
         errorMessage = errorData.message || errorData.error_description || errorData.error || errorMessage;
+        errorDetails = JSON.stringify(errorData);
       } catch (e) {
+        console.error("Error parsing token response:", e);
         // Ignore parse errors
       }
       
@@ -175,7 +192,7 @@ export async function GET(request: Request) {
           <script>
             window.opener.postMessage({
               type: 'FYERS_AUTH_FAILURE',
-              error: '${errorMessage}'
+              error: '${errorMessage} - ${errorDetails || "No details available"}'
             }, window.location.origin);
             window.close();
           </script>
@@ -183,6 +200,13 @@ export async function GET(request: Request) {
         <body>
           <h1>Authentication Failed</h1>
           <p>${errorMessage}</p>
+          <p>Details: ${errorDetails || "No details available"}</p>
+          <p>This error typically occurs when:</p>
+          <ul>
+            <li>The App ID is invalid or not active</li>
+            <li>The redirect URI does not match what's registered in Fyers</li>
+            <li>The authorization code has expired or is invalid</li>
+          </ul>
         </body>
         </html>
       `, {
@@ -194,9 +218,7 @@ export async function GET(request: Request) {
     
     // Parse the token response
     const tokenData = await tokenResponse.json();
-    
-    // Log token data for debugging (remove in production)
-    console.log('Token received:', tokenData.access_token ? 'Token received successfully' : 'No token received');
+    console.log("Token exchange successful, data:", tokenData);
     
     // Update the broker credentials with the tokens
     const updatedCredentials = {
@@ -253,17 +275,7 @@ export async function GET(request: Request) {
       });
     }
     
-    // Verify the token was saved properly
-    const { data: verifyBroker, error: verifyError } = await supabase
-      .from('broker_credentials')
-      .select('credentials, access_token')
-      .eq('id', broker.id)
-      .single();
-      
-    console.log('Verification check:', {
-      hasTokenInCredentials: verifyBroker?.credentials?.['Access Token'] ? 'Yes' : 'No',
-      hasTokenInColumn: verifyBroker?.access_token ? 'Yes' : 'No',
-    });
+    console.log("Fyers authentication successful");
     
     // Return a success page that closes itself and notifies the parent window
     return new Response(`
@@ -280,7 +292,7 @@ export async function GET(request: Request) {
       </head>
       <body>
         <h1>Authentication Successful</h1>
-        <p>You have successfully authenticated with Fyers. You can close this window now.</p>
+        <p>You have successfully authenticated with Fyers. This window will close automatically.</p>
       </body>
       </html>
     `, {
@@ -288,9 +300,8 @@ export async function GET(request: Request) {
         'Content-Type': 'text/html',
       },
     });
-    
   } catch (error: any) {
-    console.error('Callback error:', error);
+    console.error('Fyers callback error:', error);
     
     return new Response(`
       <!DOCTYPE html>
@@ -300,14 +311,14 @@ export async function GET(request: Request) {
         <script>
           window.opener.postMessage({
             type: 'FYERS_AUTH_FAILURE',
-            error: 'Server error: ${error.message || 'Unknown error'}'
+            error: 'An unexpected error occurred'
           }, window.location.origin);
           window.close();
         </script>
       </head>
       <body>
         <h1>Authentication Failed</h1>
-        <p>Server error: ${error.message || 'Unknown error'}</p>
+        <p>An unexpected error occurred: ${error.message || 'Unknown error'}</p>
       </body>
       </html>
     `, {

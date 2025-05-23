@@ -39,31 +39,22 @@ export async function POST(request: Request) {
       );
     }
 
-    // Update the broker to be inactive and remove tokens
-    const updatedCredentials = {
-      ...broker.credentials,
-      'Access Token': null,
-      'Refresh Token': null
-    };
-    
+    // Update broker status to disabled
     const { error: updateError } = await supabase
       .from('broker_credentials')
-      .update({
-        credentials: updatedCredentials,
-        access_token: null,
-        token_expiry: null,
-        is_active: false
-      })
+      .update({ is_active: false })
       .eq('id', broker_id);
 
     if (updateError) {
       throw updateError;
     }
 
+    // Return success
     return NextResponse.json({
       success: true,
       message: 'Fyers broker deactivated successfully'
     });
+
   } catch (error: any) {
     return NextResponse.json(
       { error: error.message || 'Failed to deactivate Fyers broker' },

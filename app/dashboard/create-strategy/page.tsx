@@ -61,10 +61,10 @@ export default async function CreateStrategyPage() {
   if (!isAdmin) {
     return (
       <SidebarProvider>
-        <div className="grid min-h-screen w-full grid-cols-[auto_1fr] bg-zinc-950 text-zinc-100 font-mono">
+        <div className="grid min-h-screen w-full grid-cols-[auto_1fr] bg-black text-white font-mono">
           <AppSidebar />
-          <SidebarInset>
-            <header className="flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-[[data-collapsible=icon]]/sidebar-wrapper:h-12">
+          <SidebarInset className="flex flex-col h-screen overflow-hidden">
+            <header className="sticky top-0 z-50 flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-[[data-collapsible=icon]]/sidebar-wrapper:h-12 border-b border-zinc-900 bg-black/95 backdrop-blur supports-[backdrop-filter]:bg-black/60">
               <div className="flex items-center gap-2 px-4">
                 <SidebarTrigger className="-ml-1" />
                 <Separator orientation="vertical" className="mr-2 h-4" />
@@ -98,7 +98,7 @@ export default async function CreateStrategyPage() {
               </div>
             </header>
             
-            <main className="p-6">
+            <main className="flex-1 overflow-y-auto p-6">
               <div className="flex flex-col items-center justify-center max-w-3xl mx-auto py-12">
                 <div className="w-16 h-16 bg-red-900/20 rounded-full flex items-center justify-center mb-6">
                   <AlertTriangle size={32} className="text-red-500" />
@@ -120,10 +120,10 @@ export default async function CreateStrategyPage() {
 
   return (
     <SidebarProvider>
-      <div className="grid min-h-screen w-full grid-cols-[auto_1fr] bg-zinc-950 text-zinc-100 font-mono">
+      <div className="grid min-h-screen w-full grid-cols-[auto_1fr] bg-black text-white font-mono">
         <AppSidebar />
-        <SidebarInset>
-          <header className="flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-[[data-collapsible=icon]]/sidebar-wrapper:h-12">
+        <SidebarInset className="flex flex-col h-screen overflow-hidden">
+          <header className="sticky top-0 z-50 flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-[[data-collapsible=icon]]/sidebar-wrapper:h-12 border-b border-zinc-900 bg-black/95 backdrop-blur supports-[backdrop-filter]:bg-black/60">
             <div className="flex items-center gap-2 px-4">
               <SidebarTrigger className="-ml-1" />
               <Separator orientation="vertical" className="mr-2 h-4" />
@@ -157,7 +157,7 @@ export default async function CreateStrategyPage() {
             </div>
           </header>
           
-          <main className="p-6">
+          <main className="flex-1 overflow-y-auto p-6">
             <div className="mb-8">
               <h1 className="text-2xl font-semibold">Create a New Strategy</h1>
               <p className="text-zinc-400">Fill in the details to create your custom trading strategy</p>

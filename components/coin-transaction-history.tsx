@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/dialog"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Button } from "@/components/ui/button"
-import { HistoryIcon, ArrowUpIcon, ArrowDownIcon, XIcon, CoinsIcon, ZapIcon } from 'lucide-react'
+import { HistoryIcon, ArrowUpIcon, ArrowDownIcon, XIcon, CoinsIcon, ZapIcon, BellIcon } from 'lucide-react'
 
 interface Transaction {
   id: string
@@ -96,15 +96,14 @@ export function CoinTransactionHistory() {
           size="sm"
           className="ml-2 border-zinc-800 hover:bg-zinc-900 bg-zinc-950 text-white"
         >
-          <HistoryIcon className="h-4 w-4 mr-1" />
-          <span className="font-mono text-xs uppercase">History</span>
+          <BellIcon className="h-4 w-4" />
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[500px] bg-black border border-zinc-800 text-white p-0 font-mono">
         <DialogHeader className="px-6 py-4 border-b border-zinc-900 bg-zinc-950">
           <DialogTitle className="text-sm uppercase tracking-wider flex items-center font-mono">
-            <HistoryIcon className="h-4 w-4 mr-2" />
-            Coin History
+            <BellIcon className="h-4 w-4 mr-2" />
+            Notifications
           </DialogTitle>
           <DialogClose className="absolute right-4 top-4 text-zinc-500 hover:text-white">
             <XIcon className="h-4 w-4" />

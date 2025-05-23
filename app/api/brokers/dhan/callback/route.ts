@@ -1,34 +1,30 @@
 import { createClient } from '@/lib/supabase/server';
-import { NextResponse } from 'next/server';
 
 // Environment variables (would normally be in .env)
-const UPSTOX_API_URL = process.env.UPSTOX_API_URL || 'https://api.upstox.com/v2';
-const UPSTOX_CLIENT_ID = process.env.UPSTOX_CLIENT_ID;
-const UPSTOX_CLIENT_SECRET = process.env.UPSTOX_CLIENT_SECRET;
-const UPSTOX_REDIRECT_URI = process.env.UPSTOX_REDIRECT_URI || 'https://www.algoz.tech/api/brokers/upstox/callback';
-const UPSTOX_TOKEN_URL = process.env.UPSTOX_TOKEN_URL || 'https://api.upstox.com/v2/token';
-
-// Default redirect URI as fallback
-const DEFAULT_REDIRECT_URI = process.env.UPSTOX_REDIRECT_URI || 'https://www.algoz.tech/api/brokers/upstox/callback';
+const DHAN_TOKEN_URL = process.env.DHAN_TOKEN_URL || 'https://api.dhan.co/oauth2/token';
 
 export async function GET(request: Request) {
   try {
+    console.log("Dhan callback received");
     const url = new URL(request.url);
     const code = url.searchParams.get('code');
     const state = url.searchParams.get('state');
     const error = url.searchParams.get('error');
     const errorDescription = url.searchParams.get('error_description');
     
+    console.log("Dhan callback params:", { code, state, error, errorDescription });
+    
     // If there's an error, close the window with an error message
     if (error) {
+      console.error("Dhan auth error:", error, errorDescription);
       return new Response(`
         <!DOCTYPE html>
         <html>
         <head>
-          <title>Upstox Authentication Failed</title>
+          <title>Dhan Authentication Failed</title>
           <script>
             window.opener.postMessage({
-              type: 'UPSTOX_AUTH_FAILURE',
+              type: 'DHAN_AUTH_FAILURE',
               error: '${errorDescription || error}'
             }, window.location.origin);
             window.close();
@@ -48,14 +44,15 @@ export async function GET(request: Request) {
     
     // Check if code and state are present
     if (!code || !state) {
+      console.error("Missing code or state parameter:", { code, state });
       return new Response(`
         <!DOCTYPE html>
         <html>
         <head>
-          <title>Upstox Authentication Failed</title>
+          <title>Dhan Authentication Failed</title>
           <script>
             window.opener.postMessage({
-              type: 'UPSTOX_AUTH_FAILURE',
+              type: 'DHAN_AUTH_FAILURE',
               error: 'Missing code or state parameter'
             }, window.location.origin);
             window.close();
@@ -85,14 +82,15 @@ export async function GET(request: Request) {
       .single();
     
     if (brokerError || !broker) {
+      console.error("Invalid state parameter or broker not found:", brokerError);
       return new Response(`
         <!DOCTYPE html>
         <html>
         <head>
-          <title>Upstox Authentication Failed</title>
+          <title>Dhan Authentication Failed</title>
           <script>
             window.opener.postMessage({
-              type: 'UPSTOX_AUTH_FAILURE',
+              type: 'DHAN_AUTH_FAILURE',
               error: 'Invalid state parameter'
             }, window.location.origin);
             window.close();
@@ -111,32 +109,67 @@ export async function GET(request: Request) {
     }
     
     // Extract required credentials
-    const { 'API Key': apiKey, 'Secret Key': secretKey } = broker.credentials;
+    const { 'Client ID': clientId } = broker.credentials;
+    
+    if (!clientId) {
+      console.error("Missing required credentials");
+      return new Response(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Dhan Authentication Failed</title>
+          <script>
+            window.opener.postMessage({
+              type: 'DHAN_AUTH_FAILURE',
+              error: 'Missing required credentials'
+            }, window.location.origin);
+            window.close();
+          </script>
+        </head>
+        <body>
+          <h1>Authentication Failed</h1>
+          <p>Missing required credentials. Please add your Client ID.</p>
+        </body>
+        </html>
+      `, {
+        headers: {
+          'Content-Type': 'text/html',
+        },
+      });
+    }
     
     // Use redirect_url from broker record if available, otherwise use default
-    const redirectUri = broker.redirect_url || DEFAULT_REDIRECT_URI;
+    const redirectUri = broker.redirect_url || 'https://www.algoz.tech/api/brokers/dhan/callback';
     
     // Exchange the authorization code for an access token
-    const tokenResponse = await fetch(UPSTOX_TOKEN_URL, {
+    console.log("Exchanging code for token with params:", { grant_type: 'authorization_code', code, client_id: clientId, redirect_uri: redirectUri });
+    
+    const tokenResponse = await fetch(DHAN_TOKEN_URL, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
+        'Content-Type': 'application/json',
       },
-      body: new URLSearchParams({
-        code,
-        client_id: apiKey,
-        client_secret: secretKey,
-        redirect_uri: redirectUri,
+      body: JSON.stringify({
         grant_type: 'authorization_code',
-      }).toString(),
+        code,
+        client_id: clientId,
+        redirect_uri: redirectUri,
+      }),
     });
+    
+    console.log("Token exchange response status:", tokenResponse.status);
     
     if (!tokenResponse.ok) {
       let errorMessage = 'Failed to exchange code for token';
+      let errorDetails;
+      
       try {
         const errorData = await tokenResponse.json();
-        errorMessage = errorData.error_description || errorData.error || errorMessage;
+        console.error("Token exchange error response:", errorData);
+        errorMessage = errorData.message || errorData.error_description || errorData.error || errorMessage;
+        errorDetails = JSON.stringify(errorData);
       } catch (e) {
+        console.error("Error parsing token response:", e);
         // Ignore parse errors
       }
       
@@ -153,11 +186,11 @@ export async function GET(request: Request) {
         <!DOCTYPE html>
         <html>
         <head>
-          <title>Upstox Authentication Failed</title>
+          <title>Dhan Authentication Failed</title>
           <script>
             window.opener.postMessage({
-              type: 'UPSTOX_AUTH_FAILURE',
-              error: '${errorMessage}'
+              type: 'DHAN_AUTH_FAILURE',
+              error: '${errorMessage} - ${errorDetails || "No details available"}'
             }, window.location.origin);
             window.close();
           </script>
@@ -165,6 +198,13 @@ export async function GET(request: Request) {
         <body>
           <h1>Authentication Failed</h1>
           <p>${errorMessage}</p>
+          <p>Details: ${errorDetails || "No details available"}</p>
+          <p>This error typically occurs when:</p>
+          <ul>
+            <li>The Client ID is invalid or not active</li>
+            <li>The redirect URI does not match what's registered in Dhan</li>
+            <li>The authorization code has expired or is invalid</li>
+          </ul>
         </body>
         </html>
       `, {
@@ -176,18 +216,20 @@ export async function GET(request: Request) {
     
     // Parse the token response
     const tokenData = await tokenResponse.json();
-    
-    // Log token data for debugging (remove in production)
-    console.log('Token received:', tokenData.access_token ? 'Token received successfully' : 'No token received');
+    console.log("Token exchange successful, data:", tokenData);
     
     // Update the broker credentials with the tokens
     const updatedCredentials = {
       ...broker.credentials,
       'Access Token': tokenData.access_token,
-      'Refresh Token': tokenData.refresh_token,
-      'Token Type': tokenData.token_type,
-      'Expires In': tokenData.expires_in,
+      'Refresh Token': tokenData.refresh_token || null,
+      'Token Type': tokenData.token_type || 'Bearer',
+      'Expires In': tokenData.expires_in || 86400, // Default to 24 hours if not provided
     };
+    
+    // Calculate expiry timestamp (current time + expires_in seconds)
+    const expiresAt = new Date();
+    expiresAt.setSeconds(expiresAt.getSeconds() + (tokenData.expires_in || 86400));
     
     // Save the updated credentials and mark the broker as active
     const { error: updateError } = await supabase
@@ -195,6 +237,7 @@ export async function GET(request: Request) {
       .update({
         credentials: updatedCredentials,
         access_token: tokenData.access_token, // Store in dedicated column
+        token_expiry: expiresAt.toISOString(),
         is_active: true,
         is_pending_auth: false,
         auth_state: null,
@@ -209,10 +252,10 @@ export async function GET(request: Request) {
         <!DOCTYPE html>
         <html>
         <head>
-          <title>Upstox Authentication Failed</title>
+          <title>Dhan Authentication Failed</title>
           <script>
             window.opener.postMessage({
-              type: 'UPSTOX_AUTH_FAILURE',
+              type: 'DHAN_AUTH_FAILURE',
               error: 'Failed to save authentication tokens'
             }, window.location.origin);
             window.close();
@@ -230,34 +273,24 @@ export async function GET(request: Request) {
       });
     }
     
-    // Verify the token was saved properly
-    const { data: verifyBroker, error: verifyError } = await supabase
-      .from('broker_credentials')
-      .select('credentials, access_token')
-      .eq('id', broker.id)
-      .single();
-      
-    console.log('Verification check:', {
-      hasTokenInCredentials: verifyBroker?.credentials?.['Access Token'] ? 'Yes' : 'No',
-      hasTokenInColumn: verifyBroker?.access_token ? 'Yes' : 'No',
-    });
+    console.log("Dhan authentication successful");
     
     // Return a success page that closes itself and notifies the parent window
     return new Response(`
       <!DOCTYPE html>
       <html>
       <head>
-        <title>Upstox Authentication Successful</title>
+        <title>Dhan Authentication Successful</title>
         <script>
           window.opener.postMessage({
-            type: 'UPSTOX_AUTH_SUCCESS'
+            type: 'DHAN_AUTH_SUCCESS'
           }, window.location.origin);
           window.close();
         </script>
       </head>
       <body>
         <h1>Authentication Successful</h1>
-        <p>You can close this window now.</p>
+        <p>You have successfully authenticated with Dhan. This window will close automatically.</p>
       </body>
       </html>
     `, {
@@ -266,16 +299,16 @@ export async function GET(request: Request) {
       },
     });
   } catch (error: any) {
-    console.error('Upstox callback error:', error);
+    console.error('Dhan callback error:', error);
     
     return new Response(`
       <!DOCTYPE html>
       <html>
       <head>
-        <title>Upstox Authentication Failed</title>
+        <title>Dhan Authentication Failed</title>
         <script>
           window.opener.postMessage({
-            type: 'UPSTOX_AUTH_FAILURE',
+            type: 'DHAN_AUTH_FAILURE',
             error: 'An unexpected error occurred'
           }, window.location.origin);
           window.close();
@@ -283,7 +316,7 @@ export async function GET(request: Request) {
       </head>
       <body>
         <h1>Authentication Failed</h1>
-        <p>An unexpected error occurred.</p>
+        <p>An unexpected error occurred: ${error.message || 'Unknown error'}</p>
       </body>
       </html>
     `, {

@@ -1,10 +1,12 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
+import { v4 as uuidv4 } from 'uuid';
 
 // Environment variables (would normally be in .env)
 const UPSTOX_API_URL = process.env.UPSTOX_API_URL || 'https://api.upstox.com/v2';
 const UPSTOX_LOGIN_URL = process.env.UPSTOX_LOGIN_URL || 'https://api.upstox.com/v2/login/authorization/dialog';
-const UPSTOX_REDIRECT_URI = process.env.UPSTOX_REDIRECT_URI || 'https://www.algoz.tech/api/brokers/upstox/callback';
+// Default redirect URI as fallback
+const DEFAULT_REDIRECT_URI = process.env.UPSTOX_REDIRECT_URI || 'https://www.algoz.tech/api/brokers/upstox/callback';
 
 export async function POST(request: Request) {
   try {
@@ -55,7 +57,7 @@ export async function POST(request: Request) {
     }
 
     // Generate a random state to prevent CSRF attacks
-    const state = Math.random().toString(36).substring(2);
+    const state = uuidv4();
     
     // Store the state in the broker record for verification later
     const { error: updateError } = await supabase
@@ -70,10 +72,13 @@ export async function POST(request: Request) {
       throw updateError;
     }
 
+    // Use redirect_url from broker record if available, otherwise use default
+    const redirectUri = broker.redirect_url || DEFAULT_REDIRECT_URI;
+
     // Generate the OAuth URL
     const queryParams = new URLSearchParams({
       client_id: apiKey,
-      redirect_uri: UPSTOX_REDIRECT_URI,
+      redirect_uri: redirectUri,
       response_type: 'code',
       state: state
     });

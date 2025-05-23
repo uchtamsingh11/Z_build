@@ -2,10 +2,10 @@ import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 import { v4 as uuidv4 } from 'uuid';
 
-// Environment variables (would normally be in .env)
-const FYERS_AUTH_URL = process.env.FYERS_AUTH_URL || 'https://api.fyers.in/api/v2/generate-authcode';
 // Default redirect URI as fallback
-const DEFAULT_REDIRECT_URI = process.env.FYERS_REDIRECT_URI || 'https://www.algoz.tech/api/brokers/fyers/callback';
+const DEFAULT_REDIRECT_URI = process.env.DHAN_REDIRECT_URI || 'https://www.algoz.tech/api/brokers/dhan/callback';
+// Dhan OAuth URL
+const DHAN_AUTH_URL = process.env.DHAN_AUTH_URL || 'https://api.dhan.co/oauth2/authorize';
 
 export async function POST(request: Request) {
   try {
@@ -37,20 +37,20 @@ export async function POST(request: Request) {
       );
     }
 
-    // Ensure this is a Fyers broker
-    if (broker.broker_name !== 'Fyers') {
+    // Ensure this is a Dhan broker
+    if (broker.broker_name !== 'Dhan') {
       return NextResponse.json(
-        { error: 'Not a Fyers broker' },
+        { error: 'Not a Dhan broker' },
         { status: 400 }
       );
     }
 
     // Extract required credentials
-    const { 'App ID': clientId } = broker.credentials;
+    const { 'Client ID': clientId } = broker.credentials;
     
     if (!clientId) {
       return NextResponse.json(
-        { error: 'Missing required Fyers credentials (App ID)' },
+        { error: 'Missing required Dhan credentials (Client ID)' },
         { status: 400 }
       );
     }
@@ -82,7 +82,7 @@ export async function POST(request: Request) {
       state: state
     });
 
-    const redirectUrl = `${FYERS_AUTH_URL}?${queryParams.toString()}`;
+    const redirectUrl = `${DHAN_AUTH_URL}?${queryParams.toString()}`;
 
     // Return the URL for the frontend to redirect to
     return NextResponse.json({
@@ -91,7 +91,7 @@ export async function POST(request: Request) {
     });
   } catch (error: any) {
     return NextResponse.json(
-      { error: error.message || 'Failed to initiate Fyers OAuth flow' },
+      { error: error.message || 'Failed to initiate Dhan OAuth flow' },
       { status: 500 }
     );
   }

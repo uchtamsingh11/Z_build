@@ -47,12 +47,6 @@ export default function LogoCloud() {
                             
                             <div className="flex">
                                 <span className="mx-auto text-lg font-mono text-white opacity-100 uppercase font-semibold">
-                                    ZERODHA
-                                </span>
-                            </div>
-                            
-                            <div className="flex">
-                                <span className="mx-auto text-lg font-mono text-white opacity-100 uppercase font-semibold">
                                     FYERS
                                 </span>
                             </div>
